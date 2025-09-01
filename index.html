@@ -1,61 +1,12 @@
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Flipbook</title>
+import HTMLFlipBook from "react-pageflip";
 
-  <!-- StPageFlip CSS i JS w Twojej ścieżce -->
-  <link rel="stylesheet" href="/flipbook/StPageFlip-2.0.0/page-flip.min.css">
-  <script src="/flipbook/StPageFlip-2.0.0/page-flip.browser.min.js"></script>
-
-  <style>
-    body {
-      margin: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      background: #eee;
-    }
-    #flipbook {
-      width: 90%;
-      height: 90%;
-      box-shadow: 0 0 20px rgba(0,0,0,0.3);
-    }
-  </style>
-</head>
-<body>
-
-<div id="flipbook"></div>
-
-<script>
-window.onload = function() {
-    const container = document.getElementById("flipbook");
-
-    // Lista obrazów flipbooka w tym samym katalogu co index.html
-    const pages = [
-        "page_1.jpg",
-        "page_2.jpg",
-        "page_3.jpg"
-        // dodaj kolejne obrazy w kolejności
-    ];
-
-    // Tworzymy flipbook
-    const flipbook = new St.PageFlip(container, {
-        width: 600,
-        height: 800,
-        size: "stretch",
-        maxShadowOpacity: 0.5,
-        showCover: true,
-        mobileScrollSupport: true
-    });
-
-    // Ładujemy strony z obrazów
-    flipbook.loadFromImages(pages);
-};
-</script>
-
-</body>
-</html>
+function MyBook(props) {
+  return (
+    <HTMLFlipBook width={300} height={500}>
+      <div className="page_1.jpg">Page 1</div>
+      <div className="page_2.jpg"">Page 2</div>
+      <div className="page_3.jpg"">Page 3</div>
+      <div className="page_1.jpg"">Page 4</div>
+    </HTMLFlipBook>
+  );
+}
