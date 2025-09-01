@@ -28,19 +28,17 @@
 <script src="https://cdn.jsdelivr.net/npm/stpageflip/dist/js/page-flip.browser.min.js"></script>
 
 <script>
-  // Uruchamiamy flipbook dopiero po pełnym załadowaniu strony
   window.onload = function() {
     const container = document.getElementById("flipbook");
 
-    // Tutaj wpisz wszystkie obrazy stron
+    // Wpisz wszystkie obrazy stron tutaj
     const pages = [
       "page_1.jpg",
       "page_2.jpg",
       "page_3.jpg"
-      // dodaj kolejne strony, np. "page_4.jpg"
+      // dodaj kolejne obrazy w kolejności, np. "page_4.jpg"
     ];
 
-    // Tworzymy flipbook
     const flipbook = new St.PageFlip(container, {
       width: 600,        // szerokość strony
       height: 800,       // wysokość strony
