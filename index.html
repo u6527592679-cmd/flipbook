@@ -2,8 +2,8 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8">
-  <title>Flipbook PDF</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/stpageflip/dist/css/page-flip.min.css" />
+  <title>Flipbook</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/stpageflip/dist/css/page-flip.min.css">
   <style>
     body {
       margin: 0;
@@ -21,58 +21,33 @@
   </style>
 </head>
 <body>
-  <div id="flipbook"></div>
 
-  <!-- Biblioteka flipbook -->
-  <script src="https://cdn.jsdelivr.net/npm/stpageflip/dist/js/page-flip.browser.min.js"></script>
-  <!-- PDF.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.122/pdf.min.js"></script>
-  <script>
-    // Tutaj wskazujesz nazwę pliku PDF
-    const pdfUrl = "twoj_plik12.pdf"; 
-    const container = document.getElementById("flipbook");
+<div id="flipbook"></div>
 
-    async function renderPDFtoImages(url) {
-      const pdf = await pdfjsLib.getDocument(url).promise;
-      const pages = [];
+<script src="https://cdn.jsdelivr.net/npm/stpageflip/dist/js/page-flip.browser.min.js"></script>
+<script>
+  const container = document.getElementById("flipbook");
 
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: 2 });
-        const canvas = document.createElement("canvas");
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        const context = canvas.getContext("2d");
-        await page.render({ canvasContext: context, viewport }).promise;
-        pages.push(canvas.toDataURL());
-      }
-      return pages;
-    }
+  // Tutaj wpisz wszystkie obrazy stron PDF
+  const pages = [
+    "page_1.jpg",
+    "page_2.jpg",
+    "page_3.jpg"
+    // dodaj kolejne obrazy w kolejności
+  ];
 
-    async function initFlipbook() {
-      try {
-        const images = await renderPDFtoImages(pdfUrl);
-        const flipbook = new St.PageFlip(container, {
-          width: 600,       // szerokość strony
-          height: 800,      // wysokość strony
-          size: "stretch",  // dopasowanie do ekranu
-          maxShadowOpacity: 0.5,
-          showCover: true,
-          mobileScrollSupport: true
-        });
+  const flipbook = new St.PageFlip(container, {
+    width: 600,        // szerokość strony
+    height: 800,       // wysokość strony
+    size: "stretch",   // dopasowanie do ekranu
+    maxShadowOpacity: 0.5,
+    showCover: true,
+    mobileScrollSupport: true
+  });
 
-        flipbook.loadFromImages(images);
-      } catch (err) {
-        console.error("Błąd podczas ładowania flipbooka:", err);
-        container.innerHTML = "<p style='color:red'>Nie udało się wczytać PDF.</p>";
-      }
-    }
+  flipbook.loadFromImages(pages);
+</script>
 
-    initFlipbook();
-  </script>
 </body>
 </html>
-
-
-
 
