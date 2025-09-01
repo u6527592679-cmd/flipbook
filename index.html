@@ -2,8 +2,14 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Flipbook</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/stpageflip/dist/css/page-flip.min.css">
+
+  <!-- StPageFlip CSS i JS w Twojej ścieżce -->
+  <link rel="stylesheet" href="/flipbook/StPageFlip-2.0.0/page-flip.min.css">
+  <script src="/flipbook/StPageFlip-2.0.0/page-flip.browser.min.js"></script>
+
   <style>
     body {
       margin: 0;
@@ -24,32 +30,31 @@
 
 <div id="flipbook"></div>
 
-<!-- Biblioteka StPageFlip -->
-<script src="https://cdn.jsdelivr.net/npm/stpageflip/dist/js/page-flip.browser.min.js"></script>
-
 <script>
-  window.onload = function() {
+window.onload = function() {
     const container = document.getElementById("flipbook");
 
-    // Wpisz wszystkie obrazy stron tutaj
+    // Lista obrazów flipbooka w tym samym katalogu co index.html
     const pages = [
-      "page_1.jpg",
-      "page_2.jpg",
-      "page_3.jpg"
-      // dodaj kolejne obrazy w kolejności, np. "page_4.jpg"
+        "page_1.jpg",
+        "page_2.jpg",
+        "page_3.jpg"
+        // dodaj kolejne obrazy w kolejności
     ];
 
+    // Tworzymy flipbook
     const flipbook = new St.PageFlip(container, {
-      width: 600,        // szerokość strony
-      height: 800,       // wysokość strony
-      size: "stretch",   // dopasowanie do ekranu
-      maxShadowOpacity: 0.5,
-      showCover: true,
-      mobileScrollSupport: true
+        width: 600,
+        height: 800,
+        size: "stretch",
+        maxShadowOpacity: 0.5,
+        showCover: true,
+        mobileScrollSupport: true
     });
 
+    // Ładujemy strony z obrazów
     flipbook.loadFromImages(pages);
-  };
+};
 </script>
 
 </body>
