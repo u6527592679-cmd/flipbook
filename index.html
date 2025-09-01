@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Flipbook PDF</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/stpageflip/dist/css/page-flip.min.css" />
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background: #eee;
+    }
+    #flipbook {
+      width: 90%;
+      height: 90%;
+    }
+  </style>
+</head>
+<body>
+  <div id="flipbook"></div>
+
+  <!-- Biblioteka flipbook -->
+  <script src="https://cdn.jsdelivr.net/npm/stpageflip/dist/js/page-flip.browser.min.js"></script>
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.122/pdf.min.js"></script>
+  <script>
+    const pdfUrl = "twoj_plik.pdf"; // <- tu podmień nazwę swojego pliku PDF
+    const container = document.getElementById("flipbook");
+
+    async function renderPDFtoImages(url) {
+      const pdf = await pdfjsLib.getDocument(url).promise;
+      const pages = [];
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 2 });
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const context = canvas.getContext("2d");
+        await page.render({ canvasContext: context, viewport }).promise;
+        pages.push(canvas.toDataURL());
+      }
+      return pages;
+    }
+
+    async function initFlipbook() {
+      const images = await renderPDFtoImages(pdfUrl);
+      const flipbook = new St.PageFlip(container, {
+        width: 600,
+        height: 800,
+        size: "stretch",
+        maxShadowOpacity: 0.5,
+        showCover: true,
+        mobileScrollSupport: true
+      });
+
+      flipbook.loadFromImages(images);
+    }
+
+    initFlipbook();
+  </script>
+</body>
+</html>
