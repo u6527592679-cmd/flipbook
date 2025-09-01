@@ -16,6 +16,7 @@
     #flipbook {
       width: 90%;
       height: 90%;
+      box-shadow: 0 0 20px rgba(0,0,0,0.3);
     }
   </style>
 </head>
@@ -27,7 +28,8 @@
   <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.122/pdf.min.js"></script>
   <script>
-    const pdfUrl = "twoj_plik.pdf"; // <- tu podmień nazwę swojego pliku PDF
+    // Tutaj wskazujesz nazwę pliku PDF
+    const pdfUrl = "moj_plik.pdf"; 
     const container = document.getElementById("flipbook");
 
     async function renderPDFtoImages(url) {
@@ -48,17 +50,22 @@
     }
 
     async function initFlipbook() {
-      const images = await renderPDFtoImages(pdfUrl);
-      const flipbook = new St.PageFlip(container, {
-        width: 600,
-        height: 800,
-        size: "stretch",
-        maxShadowOpacity: 0.5,
-        showCover: true,
-        mobileScrollSupport: true
-      });
+      try {
+        const images = await renderPDFtoImages(pdfUrl);
+        const flipbook = new St.PageFlip(container, {
+          width: 600,       // szerokość strony
+          height: 800,      // wysokość strony
+          size: "stretch",  // dopasowanie do ekranu
+          maxShadowOpacity: 0.5,
+          showCover: true,
+          mobileScrollSupport: true
+        });
 
-      flipbook.loadFromImages(images);
+        flipbook.loadFromImages(images);
+      } catch (err) {
+        console.error("Błąd podczas ładowania flipbooka:", err);
+        container.innerHTML = "<p style='color:red'>Nie udało się wczytać PDF.</p>";
+      }
     }
 
     initFlipbook();
