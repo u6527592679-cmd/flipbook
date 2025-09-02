@@ -1,1 +1,107 @@
-<a href="https://www.flipbookpdf.net/web/site/d31e604f38185204489d5f66041ed3a61745f44f202509.pdf.html"><img src="https://www.flipbookpdf.net/web/files/flipbooks/d31e604f38185204489d5f66041ed3a61745f44f202509.pdf/1.jpg" width="300px"></a>
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Katalog produktów</title>
+<style>
+body { font-family: Arial; text-align: center; margin: 0; background: #f9f9f9; }
+h1 { margin: 20px 0; font-size: 24px; }
+#flipbook { margin: 0 auto; width: 90%; max-width: 800px; height: 600px; border: 1px solid #ccc; background: #fff; position: relative; }
+.loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 18px; font-weight: bold; color: #333; }
+.controls { margin: 15px; }
+.controls button { padding: 8px 16px; margin: 0 5px; font-size: 14px; cursor: pointer; }
+.controls button:disabled { cursor: not-allowed; opacity: 0.6; }
+</style>
+
+<!-- PDF.js -->
+<script src="pdfjs/pdf.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.js';
+</script>
+
+<!-- Flipbook -->
+<script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
+</head>
+<body>
+
+<h1>Katalog produktów</h1>
+<div id="flipbook"></div>
+
+<div class="controls">
+  <button id="prevBtn" disabled>← Poprzednia</button>
+  <button id="nextBtn" disabled>Następna →</button>
+</div>
+
+<script>
+const pdfUrl = "twoj_plik.pdf"; // PDF w tym samym folderze
+let pdfDoc = null;
+let flipbook;
+const container = document.getElementById("flipbook");
+
+// loader
+const loader = document.createElement("div");
+loader.className = "loader";
+loader.innerText = "Ładowanie PDF...";
+container.appendChild(loader);
+
+// render pojedynczej strony PDF na dataURL
+async function renderPage(pageNumber) {
+  const page = await pdfDoc.getPage(pageNumber);
+  const viewport = page.getViewport({ scale: 1.5 });
+  const canvas = document.createElement("canvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+  return canvas.toDataURL(); // <- bardzo ważne, tylko dataURL
+}
+
+async function initFlipbook() {
+  try {
+    pdfDoc = await pdfjsLib.getDocument(pdfUrl).promise;
+    const images = [];
+
+    for (let i = 1; i <= pdfDoc.numPages; i++) {
+      loader.innerText = `Ładowanie strony ${i} z ${pdfDoc.numPages}...`;
+      const img = await renderPage(i);
+      images.push(img);
+    }
+
+    flipbook = new St.PageFlip(container, {
+      width: 400,
+      height: 600,
+      size: "stretch",
+      autoSize: true,
+      maxShadowOpacity: 0.5,
+      showCover: true,
+      mobileScrollSupport: false
+    });
+
+    flipbook.loadFromImages(images);
+    loader.style.display = "none";
+
+    // odblokowanie przycisków
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    prevBtn.disabled = false;
+    nextBtn.disabled = false;
+
+    prevBtn.addEventListener("click", () => flipbook.flipPrev());
+    nextBtn.addEventListener("click", () => flipbook.flipNext());
+
+    // strzałki klawiatury
+    document.addEventListener("keydown", function(event) {
+      if (event.key === "ArrowRight") flipbook.flipNext();
+      if (event.key === "ArrowLeft") flipbook.flipPrev();
+    });
+
+  } catch (err) {
+    loader.innerText = "Błąd ładowania PDF";
+    console.error(err);
+  }
+}
+
+window.onload = initFlipbook;
+</script>
+
+</body>
+</html>
