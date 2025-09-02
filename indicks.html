@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Katalog produktów</title>
+<title>Katalog produktów (Flipbook z PNG, zbliżenie strony)</title>
 <style>
   body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f5f6f8;color:#111}
   header{padding:12px 14px;text-align:center;background:#fff;border-bottom:1px solid #eceff1}
@@ -17,20 +17,26 @@
   button:disabled{opacity:.55;cursor:not-allowed}
   .page-info{margin-left:8px;color:#333}
   @media (max-width:700px){ #flipbook{width:calc(100% - 24px);} }
-  /* Proporcjonalne, nie rozciągane obrazki */
-  #flipbook img {
-    width: 100%;
-    height: auto;
-    max-width: 100%;
-    object-fit: contain;
-    display: block;
-    margin: 0 auto;
+  #flipbook img {width:100%;height:auto;max-width:100%;object-fit:contain;display:block;margin:0 auto;}
+  /* Modal zoom */
+  .zoom-modal {
+    display:none;position:fixed;z-index:2000;left:0;top:0;width:100vw;height:100vh;
+    background:rgba(0,0,0,0.89);justify-content:center;align-items:center;
   }
+  .zoom-modal.active {display:flex;}
+  .zoom-modal img {
+    max-width:95vw; max-height:95vh; border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,0.25);
+    background:#fff; display:block;
+    cursor: zoom-out;
+  }
+  .zoom-modal .close {
+    position:absolute;top:24px;right:40px;font-size:38px;color:#fff;font-weight:900;cursor:pointer;z-index:10;
+    background:rgba(0,0,0,0.22);border-radius:10px;width:46px;height:46px;display:flex;align-items:center;justify-content:center;
+    transition:background 0.2s;
+  }
+  .zoom-modal .close:hover {background:rgba(0,0,0,0.5);}
 </style>
 
-<!-- PDF.js -->
-<script src="pdfjs/pdf.js"></script>
-<script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.js';</script>
 <!-- StPageFlip -->
 <script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
 </head>
@@ -44,30 +50,43 @@
     <button id="prevBtn" class="secondary" disabled>◀ Poprzednia</button>
     <button id="nextBtn" disabled>Następna ▶</button>
     <button id="fullBtn" disabled>Pełny ekran</button>
+    <button id="zoomBtn" disabled title="Zbliż aktualną stronę">🔍 Zbliż stronę</button>
     <span class="page-info" id="pageInfo">Ładowanie…</span>
-    <a href="twoj_plik.pdf" download style="margin-left:12px;color:#1976d2;font-weight:600">Pobierz PDF</a>
   </div>
 </div>
 
+<!-- Modal do zbliżenia -->
+<div class="zoom-modal" id="zoomModal">
+  <span class="close" id="zoomClose">&times;</span>
+  <img id="zoomImg" src="" alt="Zbliżona strona">
+</div>
+
 <script>
-const PDF_URL = 'twoj_plik.pdf';
-const DPR = Math.max(1, window.devicePixelRatio || 1);
-const MAX_CANVAS_DIM = 14000;
+const NUM_PAGES = 19;
+const FILE_BASE = '/pages/twoj_plik1-';
+const FILE_EXT = '.png';
+
+// Generuj ścieżki do obrazków
+function getPagesArray() {
+  const arr = [];
+  for(let i=1;i<=NUM_PAGES;i++) {
+    const num = i.toString().padStart(2,'0');
+    arr.push(FILE_BASE + num + FILE_EXT);
+  }
+  return arr;
+}
 
 const container = document.getElementById('flipbook');
-const loader = document.createElement('div'); loader.className='loader'; loader.innerText='Przygotowywanie...'; container.appendChild(loader);
-
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
 const fullBtn = document.getElementById('fullBtn');
+const zoomBtn = document.getElementById('zoomBtn');
 const pageInfo = document.getElementById('pageInfo');
+const zoomModal = document.getElementById('zoomModal');
+const zoomImg = document.getElementById('zoomImg');
+const zoomClose = document.getElementById('zoomClose');
 
-let pdfDoc = null;
 let flipbook = null;
-let pagesData = [];
-let pagesCache = {};
-
-function makePlaceholder(){ const c=document.createElement('canvas'); c.width=4; c.height=4; const ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,4,4); return c.toDataURL(); }
 
 function setContainerHeight(){
   const headerH = document.querySelector('header').offsetHeight || 0;
@@ -75,53 +94,6 @@ function setContainerHeight(){
   const margin = 18;
   const available = Math.max(200, window.innerHeight - headerH - controlsH - margin);
   container.style.height = available + 'px';
-}
-
-// Render proporcjonalny, wylicza rozmiar canvasu na podstawie kontenera i DPI
-async function computeFitScaleAndSize(pageNumber) {
-  const page = await pdfDoc.getPage(pageNumber);
-  const vp = page.getViewport({ scale: 1 });
-  const targetW = container.clientWidth * DPR;
-  const targetH = container.clientHeight * DPR;
-  const scale = Math.min(targetW / vp.width, targetH / vp.height);
-  return {
-    scale,
-    width: Math.round(vp.width * scale),
-    height: Math.round(vp.height * scale)
-  };
-}
-
-async function renderPageToDataUrl(pageNumber) {
-  const { scale, width, height } = await computeFitScaleAndSize(pageNumber);
-  const page = await pdfDoc.getPage(pageNumber);
-  const viewport = page.getViewport({ scale });
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  canvas.width = width;
-  canvas.height = height;
-  await page.render({ canvasContext: ctx, viewport }).promise;
-  return canvas.toDataURL('image/jpeg', 0.95);
-}
-
-function applyImages(images){
-  try{
-    if(!flipbook) return;
-    if(typeof flipbook.updateFromImages==='function'){ flipbook.updateFromImages(images); return; }
-    if(typeof flipbook.loadFromImages==='function'){ flipbook.loadFromImages(images); return; }
-  }catch(e){ console.error(e); }
-}
-
-async function ensurePage(indexZeroBased){
-  if(pagesCache[indexZeroBased]){
-    pagesData[indexZeroBased] = pagesCache[indexZeroBased];
-    applyImages(pagesData);
-    return;
-  }
-  const pageNum = indexZeroBased + 1;
-  const dataUrl = await renderPageToDataUrl(pageNum); // już z proporcjami
-  pagesCache[indexZeroBased] = dataUrl;
-  pagesData[indexZeroBased] = dataUrl;
-  applyImages(pagesData);
 }
 
 function nextPage(){ if(flipbook){ if(typeof flipbook.flipNext==='function'){ try{ flipbook.flipNext(); return;}catch(e){} } if(typeof flipbook.turnToNextPage==='function') flipbook.turnToNextPage(); }}
@@ -158,60 +130,80 @@ function toggleFull() {
 
 function debounce(fn,wait){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
 
-async function init(){
-  try{
-    setContainerHeight();
-    const loadingTask = pdfjsLib.getDocument(PDF_URL);
-    pdfDoc = await loadingTask.promise;
-    const numPages = pdfDoc.numPages;
-    pageInfo.innerText = `Strona 0 / ${numPages}`;
-    loader.innerText = `Przygotowywanie dokumentu — ${numPages} stron`;
-
-    const placeholder = makePlaceholder();
-    pagesData = new Array(numPages).fill(placeholder);
-
-    // Ustaw size: 'stretch', min/maxWidth/Height dla zachowania elastyczności
-    flipbook = new St.PageFlip(container,{
-      width:900, height:1200, // domyślna proporcja A4
-      size:'stretch', autoSize:true,
-      minWidth:300, maxWidth:2000, minHeight:300, maxHeight:3000,
-      showCover:false, usePortrait:true, maxShadowOpacity:0.6, mobileScrollSupport:true
-    });
-    flipbook.loadFromImages(pagesData);
-
-    prevBtn.disabled=false; nextBtn.disabled=false; fullBtn.disabled=false;
-    prevBtn.onclick = prevPage; nextBtn.onclick = nextPage; fullBtn.onclick = toggleFull;
-    document.addEventListener('keydown', (e)=>{ if(e.key==='ArrowRight') nextPage(); if(e.key==='ArrowLeft') prevPage(); });
-
-    // render pierwsze 4 strony synchronicznie
-    const numInitial = Math.min(4,numPages);
-    loader.innerText = `Wczytywanie...`;
-    for(let i=0;i<numInitial;i++) await ensurePage(i);
-
-    // w tle reszta
-    loader.innerText = 'Wczytywanie pozostałych stron w tle...';
-    for(let i=numInitial;i<numPages;i++) ensurePage(i).catch(()=>{});
-
-    loader.style.display='none';
-    const cur = (typeof flipbook.getCurrentPageIndex==='function')?flipbook.getCurrentPageIndex():0;
-    pageInfo.innerText = `Strona ${cur+1} / ${numPages}`;
-
-    const onResize = debounce(async()=>{
-      setContainerHeight();
-      const curIdx = (typeof flipbook.getCurrentPageIndex==='function')?flipbook.getCurrentPageIndex():0;
-      delete pagesCache[curIdx];
-      loader.style.display='block'; loader.innerText='Dopasowywanie do rozmiaru ekranu...';
-      await ensurePage(curIdx);
-      loader.style.display='none';
-      try{ if(typeof flipbook.turnToPage==='function') flipbook.turnToPage(curIdx); }catch(e){}
-    },220);
-    window.addEventListener('resize',onResize);
-
-  }catch(err){
-    console.error('Błąd inicjalizacji:',err);
-    loader.innerText='Błąd ładowania dokumentu — sprawdź konsolę';
+function updatePageInfo() {
+  if(!flipbook) return;
+  let cur = 0, total = NUM_PAGES;
+  if(typeof flipbook.getCurrentPageIndex==='function') {
+    cur = flipbook.getCurrentPageIndex();
+  } else if(typeof flipbook.getCurrentPageIndex==='number') {
+    cur = flipbook.getCurrentPageIndex;
   }
+  pageInfo.innerText = `Strona ${cur+1} / ${total}`;
 }
+
+function showZoomModal(pageIndex) {
+  // pageIndex 0-based
+  const src = getPagesArray()[pageIndex];
+  zoomImg.src = src;
+  zoomModal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+function hideZoomModal() {
+  zoomModal.classList.remove('active');
+  zoomImg.src = '';
+  document.body.style.overflow = '';
+}
+
+async function init(){
+  setContainerHeight();
+
+  const pages = getPagesArray();
+
+  flipbook = new St.PageFlip(container, {
+    width:900, height:1200,
+    size:'stretch', autoSize:true,
+    minWidth:300, maxWidth:2000, minHeight:300, maxHeight:3000,
+    showCover:false, usePortrait:true, maxShadowOpacity:0.6, mobileScrollSupport:true
+  });
+  flipbook.loadFromImages(pages);
+
+  prevBtn.disabled=false; nextBtn.disabled=false; fullBtn.disabled=false; zoomBtn.disabled=false;
+  prevBtn.onclick = prevPage; nextBtn.onclick = nextPage; fullBtn.onclick = toggleFull;
+
+  document.addEventListener('keydown', (e)=>{
+    if(e.key==='ArrowRight') nextPage(); 
+    if(e.key==='ArrowLeft') prevPage();
+    if(zoomModal.classList.contains('active') && e.key==='Escape') hideZoomModal();
+  });
+
+  // Zbliżenie strony
+  zoomBtn.onclick = () => {
+    if(!flipbook) return;
+    let cur = 0;
+    if(typeof flipbook.getCurrentPageIndex==='function') {
+      cur = flipbook.getCurrentPageIndex();
+    } else if(typeof flipbook.getCurrentPageIndex==='number') {
+      cur = flipbook.getCurrentPageIndex;
+    }
+    showZoomModal(cur);
+  };
+  zoomClose.onclick = hideZoomModal;
+  zoomModal.onclick = (e) => {
+    if(e.target === zoomModal) hideZoomModal();
+  };
+  zoomImg.onclick = hideZoomModal;
+
+  flipbook.on('flip', updatePageInfo);
+  flipbook.on('init', updatePageInfo);
+  setTimeout(updatePageInfo, 500);
+
+  const onResize = debounce(()=>{
+    setContainerHeight();
+    if(typeof flipbook.update === 'function') flipbook.update();
+  },220);
+  window.addEventListener('resize',onResize);
+}
+
 window.addEventListener('load',init);
 </script>
 </body>
