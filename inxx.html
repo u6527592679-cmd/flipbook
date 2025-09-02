@@ -1,44 +1,44 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Katalog produktów — szybkie renderowanie</title>
-  <style>
-    body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f5f6f8;color:#111}
-    header{padding:12px 14px;text-align:center;background:#fff;border-bottom:1px solid #eceff1}
-    h1{margin:0;font-size:20px}
-    #wrap{max-width:1400px;margin:8px auto;padding:10px}
-    #flipbook{margin:10px auto;width:calc(100% - 40px);max-width:1300px;background:#fff;border:1px solid #e6e9ee;position:relative;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.06)}
-    .loader{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,0.95);padding:10px 14px;border-radius:8px;z-index:1500;box-shadow:0 6px 18px rgba(0,0,0,0.08);font-weight:600}
-    .controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;margin:8px 0}
-    button{padding:8px 12px;border-radius:8px;border:none;background:#1976d2;color:#fff;cursor:pointer}
-    button.secondary{background:#6b7280}
-    button:disabled{opacity:.55;cursor:not-allowed}
-    .page-info{margin-left:8px;color:#333}
-    @media (max-width:700px){ #flipbook{width:calc(100% - 24px);} }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Katalog produktów — szybkie renderowanie</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f5f6f8;color:#111}
+  header{padding:12px 14px;text-align:center;background:#fff;border-bottom:1px solid #eceff1}
+  h1{margin:0;font-size:20px}
+  #wrap{max-width:1400px;margin:8px auto;padding:10px}
+  #flipbook{margin:10px auto;width:calc(100% - 40px);max-width:1300px;background:#fff;border:1px solid #e6e9ee;position:relative;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.06)}
+  .loader{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,0.95);padding:10px 14px;border-radius:8px;z-index:1500;box-shadow:0 6px 18px rgba(0,0,0,0.08);font-weight:600}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;margin:8px 0}
+  button{padding:8px 12px;border-radius:8px;border:none;background:#1976d2;color:#fff;cursor:pointer}
+  button.secondary{background:#6b7280}
+  button:disabled{opacity:.55;cursor:not-allowed}
+  .page-info{margin-left:8px;color:#333}
+  @media (max-width:700px){ #flipbook{width:calc(100% - 24px);} }
+</style>
 
-  <!-- PDF.js -->
-  <script src="pdfjs/pdf.js"></script>
-  <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.js';</script>
-  <!-- StPageFlip -->
-  <script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
+<!-- PDF.js -->
+<script src="pdfjs/pdf.js"></script>
+<script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.js';</script>
+<!-- StPageFlip -->
+<script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
 </head>
 <body>
-  <header><h1>Katalog produktów — szybkie</h1></header>
+<header><h1>Katalog produktów — szybkie</h1></header>
 
-  <div id="wrap">
-    <div id="flipbook" aria-live="polite"></div>
+<div id="wrap">
+  <div id="flipbook" aria-live="polite"></div>
 
-    <div class="controls" role="toolbar" aria-label="Kontrolki flipbook">
-      <button id="prevBtn" class="secondary" disabled>◀ Poprzednia</button>
-      <button id="nextBtn" disabled>Następna ▶</button>
-      <button id="fullBtn" disabled>Pełny ekran</button>
-      <span class="page-info" id="pageInfo">Ładowanie…</span>
-      <a href="twoj_plik.pdf" download style="margin-left:12px;color:#1976d2;font-weight:600">Pobierz PDF</a>
-    </div>
+  <div class="controls" role="toolbar" aria-label="Kontrolki flipbook">
+    <button id="prevBtn" class="secondary" disabled>◀ Poprzednia</button>
+    <button id="nextBtn" disabled>Następna ▶</button>
+    <button id="fullBtn" disabled>Pełny ekran</button>
+    <span class="page-info" id="pageInfo">Ładowanie…</span>
+    <a href="twoj_plik.pdf" download style="margin-left:12px;color:#1976d2;font-weight:600">Pobierz PDF</a>
   </div>
+</div>
 
 <script>
 const PDF_URL = 'twoj_plik.pdf';
@@ -57,7 +57,6 @@ let pdfDoc = null;
 let flipbook = null;
 let pagesData = [];
 let pagesCache = {};
-let isUpdating = false;
 
 function makePlaceholder(){ const c=document.createElement('canvas'); c.width=4; c.height=4; const ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,4,4); return c.toDataURL(); }
 
@@ -69,14 +68,14 @@ function setContainerHeight(){
   container.style.height = available + 'px';
 }
 
-async function computeFitScale(pageNumber, mode='cover'){
+async function computeFitScale(pageNumber){
   const page = await pdfDoc.getPage(pageNumber);
   const vp = page.getViewport({ scale: 1 });
   const targetW = container.clientWidth * DPR;
   const targetH = container.clientHeight * DPR;
   const sx = targetW / vp.width;
   const sy = targetH / vp.height;
-  return (mode === 'cover') ? Math.max(sx, sy) : Math.min(sx, sy);
+  return Math.max(sx, sy);
 }
 
 async function renderPageToDataUrl(pageNumber, scale){
@@ -84,11 +83,12 @@ async function renderPageToDataUrl(pageNumber, scale){
   const base = page.getViewport({ scale: 1 });
   let predictedW = Math.round(base.width * scale);
   let predictedH = Math.round(base.height * scale);
-  if (predictedW > MAX_CANVAS_DIM || predictedH > MAX_CANVAS_DIM) {
-    const reduce = Math.min(MAX_CANVAS_DIM / predictedW, MAX_CANVAS_DIM / predictedH);
-    scale = scale * reduce;
-    predictedW = Math.round(base.width * scale);
-    predictedH = Math.round(base.height * scale);
+  if(predictedW > MAX_CANVAS_DIM || predictedH > MAX_CANVAS_DIM){
+    const reduce = Math.min(MAX_CANVAS_DIM/predictedW, MAX_CANVAS_DIM/predictedH);
+    scale *= reduce;
+    predictedW = Math.round(base.width*scale);
+    predictedH = Math.round(base.height*scale);
+    console.warn('Scale reduced for page', pageNumber,'new scale',scale.toFixed(2));
   }
   const viewport = page.getViewport({ scale });
   const canvas = document.createElement('canvas');
@@ -96,51 +96,41 @@ async function renderPageToDataUrl(pageNumber, scale){
   canvas.width = Math.round(viewport.width);
   canvas.height = Math.round(viewport.height);
   await page.render({ canvasContext: ctx, viewport }).promise;
-  return canvas.toDataURL('image/jpeg', 0.9);
+  return canvas.toDataURL('image/jpeg',0.9);
 }
 
-function applyImages() {
-  if (!flipbook) return;
-  if (isUpdating) return;
-  isUpdating = true;
-  flipbook.updateFromImages(pagesData);
-  isUpdating = false;
+function applyImages(images){
+  try{
+    if(!flipbook) return;
+    if(typeof flipbook.updateFromImages==='function'){ flipbook.updateFromImages(images); return; }
+    if(typeof flipbook.loadFromImages==='function'){ flipbook.loadFromImages(images); return; }
+  }catch(e){ console.error(e); }
 }
 
-async function ensurePage(indexZeroBased) {
-  if (pagesCache[indexZeroBased]) return;
-
+async function ensurePage(indexZeroBased){
+  if(pagesCache[indexZeroBased]){
+    pagesData[indexZeroBased] = pagesCache[indexZeroBased];
+    applyImages(pagesData);
+    return;
+  }
   const pageNum = indexZeroBased + 1;
-  const scale = await computeFitScale(pageNum, 'cover');
+  const scale = await computeFitScale(pageNum);
   const dataUrl = await renderPageToDataUrl(pageNum, scale);
   pagesCache[indexZeroBased] = dataUrl;
   pagesData[indexZeroBased] = dataUrl;
-  applyImages();
+  applyImages(pagesData);
 }
 
-function nextPage(){
-  if (!flipbook) return;
-  if (typeof flipbook.flipNext === 'function') flipbook.flipNext();
-  else if (typeof flipbook.turnToNextPage === 'function') flipbook.turnToNextPage();
-}
-
-function prevPage(){
-  if (!flipbook) return;
-  if (typeof flipbook.flipPrev === 'function') flipbook.flipPrev();
-  else if (typeof flipbook.turnToPrevPage === 'function') flipbook.turnToPrevPage();
-}
-
-function toggleFull(){ 
-  if (!document.fullscreenElement) container.requestFullscreen?.() || container.webkitRequestFullscreen?.(); 
-  else document.exitFullscreen?.(); 
-}
-
-function debounce(fn, wait){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
+function nextPage(){ if(flipbook){ if(typeof flipbook.flipNext==='function'){ try{ flipbook.flipNext(); return;}catch(e){} } if(typeof flipbook.turnToNextPage==='function') flipbook.turnToNextPage(); } }
+function prevPage(){ if(flipbook){ if(typeof flipbook.flipPrev==='function'){ try{ flipbook.flipPrev(); return;}catch(e){} } if(typeof flipbook.turnToPrevPage==='function') flipbook.turnToPrevPage(); } }
+function toggleFull(){ if(!document.fullscreenElement) container.requestFullscreen?.()||container.webkitRequestFullscreen?.(); else document.exitFullscreen?.(); }
+function debounce(fn,wait){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
 
 async function init(){
   try{
     setContainerHeight();
-    pdfDoc = await pdfjsLib.getDocument(PDF_URL).promise;
+    const loadingTask = pdfjsLib.getDocument(PDF_URL);
+    pdfDoc = await loadingTask.promise;
     const numPages = pdfDoc.numPages;
     pageInfo.innerText = `Strona 0 / ${numPages}`;
     loader.innerText = `Przygotowywanie dokumentu — ${numPages} stron`;
@@ -148,11 +138,11 @@ async function init(){
     const placeholder = makePlaceholder();
     pagesData = new Array(numPages).fill(placeholder);
 
-    flipbook = new St.PageFlip(container, {
-      width: 900, height: 1100,
-      size: 'stretch', autoSize: true,
-      minWidth: 300, maxWidth: 2000, minHeight: 300, maxHeight: 3000,
-      showCover: false, usePortrait: true, maxShadowOpacity: 0.6, mobileScrollSupport: true
+    flipbook = new St.PageFlip(container,{
+      width:900,height:1100,
+      size:'stretch',autoSize:true,
+      minWidth:300,maxWidth:2000,minHeight:300,maxHeight:3000,
+      showCover:false,usePortrait:true,maxShadowOpacity:0.6,mobileScrollSupport:true
     });
     flipbook.loadFromImages(pagesData);
 
@@ -160,45 +150,36 @@ async function init(){
     prevBtn.onclick = prevPage; nextBtn.onclick = nextPage; fullBtn.onclick = toggleFull;
     document.addEventListener('keydown', (e)=>{ if(e.key==='ArrowRight') nextPage(); if(e.key==='ArrowLeft') prevPage(); });
 
-    if (typeof flipbook.on === 'function') {
-      flipbook.on('flip', async (e)=> {
-        const idx = e.data;
-        pageInfo.innerText = `Strona ${idx+1} / ${numPages}`;
-        loader.style.display='block';
-        loader.innerText = `Wczytywanie strony ${idx+1}...`;
-        await ensurePage(idx);
-        if (idx-1 >= 0) ensurePage(idx-1).catch(()=>{});
-        if (idx+1 < numPages) ensurePage(idx+1).catch(()=>{});
-        loader.style.display='none';
-      });
-    }
+    // render pierwsze 4 strony synchronicznie
+    const numInitial = Math.min(4,numPages);
+    loader.innerText = `Wczytywanie pierwszych ${numInitial} stron...`;
+    for(let i=0;i<numInitial;i++) await ensurePage(i);
 
-    loader.innerText = 'Wczytywanie pierwszych stron...';
-    await ensurePage(0);
-    if (numPages >= 2) await ensurePage(1);
+    // w tle reszta
+    loader.innerText = 'Wczytywanie pozostałych stron w tle...';
+    for(let i=numInitial;i<numPages;i++) ensurePage(i).catch(()=>{});
+
     loader.style.display='none';
-    const cur = (typeof flipbook.getCurrentPageIndex === 'function') ? flipbook.getCurrentPageIndex() : 0;
+    const cur = (typeof flipbook.getCurrentPageIndex==='function')?flipbook.getCurrentPageIndex():0;
     pageInfo.innerText = `Strona ${cur+1} / ${numPages}`;
 
-    const onResize = debounce(async ()=>{
+    const onResize = debounce(async()=>{
       setContainerHeight();
-      const curIdx = (typeof flipbook.getCurrentPageIndex === 'function') ? flipbook.getCurrentPageIndex() : 0;
+      const curIdx = (typeof flipbook.getCurrentPageIndex==='function')?flipbook.getCurrentPageIndex():0;
       delete pagesCache[curIdx];
-      loader.style.display='block'; loader.innerText = 'Dopasowywanie do rozmiaru ekranu...';
+      loader.style.display='block'; loader.innerText='Dopasowywanie do rozmiaru ekranu...';
       await ensurePage(curIdx);
       loader.style.display='none';
-      try { if (typeof flipbook.turnToPage === 'function') flipbook.turnToPage(curIdx); } catch(e){}
-    }, 220);
+      try{ if(typeof flipbook.turnToPage==='function') flipbook.turnToPage(curIdx); }catch(e){}
+    },220);
+    window.addEventListener('resize',onResize);
 
-    window.addEventListener('resize', onResize);
-
-  } catch(err){
-    console.error('Błąd inicjalizacji:', err);
-    loader.innerText = 'Błąd ładowania dokumentu — sprawdź konsolę';
+  }catch(err){
+    console.error('Błąd inicjalizacji:',err);
+    loader.innerText='Błąd ładowania dokumentu — sprawdź konsolę';
   }
 }
-
-window.addEventListener('load', init);
+window.addEventListener('load',init);
 </script>
 </body>
 </html>
