@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Katalog produktów — szybkie renderowanie</title>
+<title>Katalog produktów</title>
 <style>
   body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f5f6f8;color:#111}
   header{padding:12px 14px;text-align:center;background:#fff;border-bottom:1px solid #eceff1}
@@ -26,7 +26,7 @@
 <script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
 </head>
 <body>
-<header><h1>Katalog produktów — szybkie</h1></header>
+<header><h1>Katalog produktów</h1></header>
 
 <div id="wrap">
   <div id="flipbook" aria-live="polite"></div>
@@ -151,7 +151,7 @@ async function init(){
     document.addEventListener('keydown', (e)=>{ if(e.key==='ArrowRight') nextPage(); if(e.key==='ArrowLeft') prevPage(); });
 
     // render pierwsze 4 strony synchronicznie
-    const numInitial = Math.min(4,numPages);
+    const numInitial = Math.min(10,numPages);
     loader.innerText = `Wczytywanie pierwszych ${numInitial} stron...`;
     for(let i=0;i<numInitial;i++) await ensurePage(i);
 
@@ -183,3 +183,4 @@ window.addEventListener('load',init);
 </script>
 </body>
 </html>
+
