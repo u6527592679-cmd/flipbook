@@ -1,254 +1,93 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Flipbook — diagnostyka</title>
-<style>
-  body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f6f7fb;color:#111}
-  header{padding:14px;text-align:center;background:#fff;border-bottom:1px solid #eaeef3}
-  h1{margin:0;font-size:18px}
-  #wrap{max-width:1200px;margin:12px auto;padding:12px}
-  #flipbook{width:100%;height:70vh;background:#fff;border:1px solid #e3e6ea;position:relative;overflow:hidden}
-  .loader{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,0.98);padding:12px 14px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.06);z-index:2000}
-  #diag{margin-top:12px;background:#fff;border:1px solid #e6e9ee;padding:10px;border-radius:6px;white-space:pre-wrap;font-family:monospace;font-size:13px;max-height:220px;overflow:auto}
-  .controls{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  button{padding:8px 10px;border-radius:6px;border:none;background:#1976d2;color:#fff;cursor:pointer}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Katalog produktów</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; text-align: center; }
+    h1 { margin: 20px 0; }
+    #flipbook-container { margin: 0 auto; width: 100%; max-width: 1200px; height: 80vh; position: relative; }
+    #loading { margin-top: 50px; font-size: 1.2em; color: #555; }
+    #flipbook { width: 100%; height: 100%; }
+    .controls { margin: 10px; }
+    .controls button { padding: 10px 20px; font-size: 1em; cursor: pointer; }
+  </style>
 </head>
 <body>
-<header><h1>Flipbook — diagnostyka i szybki fallback</h1></header>
-<div id="wrap">
-  <div id="flipbook"><div class="loader" id="loader">Rozpoczynam testy…</div></div>
 
-  <div class="controls">
-    <button id="btnCheck">Uruchom test (debug)</button>
-    <button id="btnShowIframe">Pokaż PDF w iframe (fallback)</button>
-    <a href="twoj_plik.pdf" download style="align-self:center;margin-left:8px">Pobierz PDF</a>
-    <div id="status" style="margin-left:auto;color:#333;font-weight:600"></div>
-  </div>
-
-  <div id="diag" aria-live="polite"></div>
+<h1>Katalog produktów</h1>
+<div id="loading">Ładowanie…</div>
+<div id="flipbook-container">
+  <div id="flipbook"></div>
 </div>
 
+<div class="controls">
+  <button id="prevBtn">Poprzednia</button>
+  <button id="nextBtn">Następna</button>
+</div>
+
+<script src="pdfjs/pdf.js"></script>
+<script src="pdfjs/pdf.worker.js"></script>
+<script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
+
 <script>
-/* KONFIGURACJA: dostosuj nazwy jeżeli u Ciebie różnią się */
-const PDF_URL = 'twoj_plik.pdf';
-const PDFJS_PATH = 'pdfjs/pdf.js';
-const PDFJS_WORKER = 'pdfjs/pdf.worker.js';
-const STPAGEFLIP = 'StPageFlip-2.0.0/page-flip.browser.min.js';
+  const flipbookEl = document.getElementById('flipbook');
+  const loadingEl = document.getElementById('loading');
+  let pageFlip;
 
-const diag = document.getElementById('diag');
-const loader = document.getElementById('loader');
-const status = document.getElementById('status');
-const flipbook = document.getElementById('flipbook');
+  // PDF.js configuration
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.js';
 
-function log(msg){
-  console.log(msg);
-  diag.textContent += msg + '\n';
-  diag.scrollTop = diag.scrollHeight;
-}
-function setLoader(msg){ loader.style.display = 'block'; loader.textContent = msg; }
-function hideLoader(){ loader.style.display = 'none'; }
+  async function initFlipbook(pdfUrl) {
+    const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+    const numPages = pdf.numPages;
+    const images = [];
 
-async function checkUrlHead(url, method='HEAD', timeoutMs=8000){
-  // try HEAD first (some servers block HEAD -> fallback to GET)
-  try {
-    const controller = new AbortController();
-    const id = setTimeout(()=>controller.abort(), timeoutMs);
-    let r = await fetch(url, { method, signal: controller.signal });
-    clearTimeout(id);
-    return { ok: r.ok, status: r.status, url };
-  } catch(e){
-    return { ok:false, status: null, url, error: e.message || e.toString() };
-  }
-}
-
-async function resourceChecks(){
-  diag.textContent = '';
-  setLoader('Sprawdzam zasoby (pdf.js, worker, StPageFlip, PDF)...');
-  log('=== Sprawdzanie zasobów ===');
-  // 1. pdf.js
-  log('Sprawdzanie: ' + PDFJS_PATH);
-  const r1 = await checkUrlHead(PDFJS_PATH,'HEAD');
-  log(JSON.stringify(r1));
-  // 2. pdf.worker.js
-  log('Sprawdzanie: ' + PDFJS_WORKER);
-  const r2 = await checkUrlHead(PDFJS_WORKER,'HEAD');
-  log(JSON.stringify(r2));
-  // 3. StPageFlip
-  log('Sprawdzanie: ' + STPAGEFLIP);
-  const r3 = await checkUrlHead(STPAGEFLIP,'HEAD');
-  log(JSON.stringify(r3));
-  // 4. PDF
-  log('Sprawdzanie: ' + PDF_URL);
-  const r4 = await checkUrlHead(PDF_URL,'HEAD');
-  log(JSON.stringify(r4));
-  hideLoader();
-  return { pdfjs:r1, worker:r2, st:r3, pdf:r4 };
-}
-
-function safeImportScript(url){
-  return new Promise((resolve,reject)=>{
-    const s=document.createElement('script');
-    s.src = url;
-    s.onload = ()=>resolve({ok:true,url});
-    s.onerror = (e)=>reject(new Error('Nie udało się załadować ' + url));
-    document.head.appendChild(s);
-  });
-}
-
-async function runFullDiagnostics(){
-  diag.textContent = '';
-  setLoader('Uruchamiam diagnostykę — patrz konsola i logi poniżej...');
-  try{
-    log('>> test zasobów (HEAD)');
-    const res = await resourceChecks();
-
-    // jeśli któryś plik 404 -> od razu powiadom
-    if (!res.pdfjs.ok) log('UWAGA: pdf.js nie dostępny pod: ' + PDFJS_PATH + '  — sprawdź ścieżkę.');
-    if (!res.worker.ok) log('UWAGA: pdf.worker.js nie dostępny pod: ' + PDFJS_WORKER);
-    if (!res.st.ok) log('UWAGA: StPageFlip nie dostępny pod: ' + STPAGEFLIP);
-    if (!res.pdf.ok) log('UWAGA: PDF nie dostępny pod: ' + PDF_URL);
-
-    // załaduj pdf.js jeśli jeszcze nie załadowany
-    if (typeof window.pdfjsLib === 'undefined') {
-      log('Ładuję pdf.js dynamicznie...');
-      try {
-        await safeImportScript(PDFJS_PATH);
-        log('pdf.js załadowany.');
-      } catch(e) {
-        log('Błąd ładowania pdf.js: ' + e.message);
-      }
-    } else log('pdfjsLib już dostępny.');
-
-    // ustaw workerSrc tylko jeśli istnieje
-    if (typeof window.pdfjsLib !== 'undefined') {
-      try {
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
-        log('Ustawiono pdfjsLib.GlobalWorkerOptions.workerSrc = ' + PDFJS_WORKER);
-      } catch(e){
-        log('Nie można ustawić workerSrc: ' + e.message);
-      }
-    }
-
-    // załaduj StPageFlip jeśli nie załadowany
-    if (typeof window.St === 'undefined') {
-      log('Ładuję StPageFlip dynamicznie...');
-      try {
-        await safeImportScript(STPAGEFLIP);
-        log('StPageFlip załadowany.');
-      } catch(e){
-        log('Błąd ładowania StPageFlip: ' + e.message);
-      }
-    } else log('St już dostępny.');
-
-    // krótkie sprawdzenie czy pdf jest dostępny przez fetch GET (zobaczymy status / CORS)
-    log('Pobieram nagłówek pliku PDF (GET z limitem)...');
-    try {
-      const controller = new AbortController();
-      const id = setTimeout(()=>controller.abort(), 8000);
-      const r = await fetch(PDF_URL, { method:'GET', signal: controller.signal });
-      clearTimeout(id);
-      log('PDF fetch: status=' + r.status + ' type=' + r.type);
-      if (!r.ok) {
-        log('Serwer zwrócił status: ' + r.status + ' — sprawdź ścieżkę pliku i uprawnienia.');
-        showFallbackIframe();
-        hideLoader();
-        return;
-      }
-    } catch(e){
-      log('Błąd pobierania PDF (GET): ' + (e.message || e));
-      log('Możliwe przyczyny: CORS, plik nie istnieje, sieć.');
-      showFallbackIframe();
-      hideLoader();
-      return;
-    }
-
-    // sprawdź, czy pdfjsLib istnieje
-    if (typeof window.pdfjsLib === 'undefined') {
-      log('Brak pdfjsLib — nie można kontynuować renderu PDF. Spróbuj poprawić ścieżkę pdfjs/pdf.js');
-      showFallbackIframe();
-      hideLoader();
-      return;
-    } else {
-      log('pdfjsLib OK. wersja: ' + (window.pdfjsLib.version || 'unknown'));
-    }
-
-    // teraz próbujemy ładować dokument z timeoutem (jeśli pdf.js utknie, zakończymy)
-    setLoader('Ładowanie dokumentu PDF (test) — proszę czekać...');
-    try {
-      const loadTask = window.pdfjsLib.getDocument(PDF_URL);
-      // timeout 12s
-      const doc = await Promise.race([
-        loadTask.promise,
-        new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout 12s podczas getDocument()')),12000))
-      ]);
-      log('PDF.js załadował dokument — pages: ' + doc.numPages);
-
-      // prosta próba renderu 1 strony na canvas (mały scale by szybko się wykonało)
-      setLoader('Renderuję pierwszą stronę testowo (mały scale)...');
-      const page = await doc.getPage(1);
-      const viewport = page.getViewport({ scale: 1 });
+    for (let i = 1; i <= numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 2 }); // wyższa rozdzielczość renderowania
       const canvas = document.createElement('canvas');
-      canvas.width = Math.min( viewport.width, 1200 );
-      canvas.height = Math.min( viewport.height, 1600 );
-      const ctx = canvas.getContext('2d', { willReadFrequently:true });
-      await page.render({ canvasContext: ctx, viewport }).promise;
-      // jeśli doszliśmy tutaj, PDF i PDF.js działają
-      // wstaw canvas do kontenera (pod loaderem)
-      hideLoader();
-      const holder = document.createElement('div');
-      holder.style.padding = '8px';
-      holder.innerHTML = '<div style="font-weight:600;margin-bottom:8px">Podgląd pierwszej strony (testowy):</div>';
-      holder.appendChild(canvas);
-      flipbook.appendChild(holder);
-      log('Render testowy zakończony pomyślnie.');
-      status.textContent = 'OK — PDF.js i render działają.';
-      // (opcjonalnie) tutaj możesz wywołać swój normalny init flipbooka...
-      return;
-    } catch(e){
-      hideLoader();
-      log('Błąd podczas ładowania/renderu przez PDF.js: ' + (e.message || e));
-      log('Wykonuję fallback: osadzam PDF w iframe (jeśli dostępny).');
-      showFallbackIframe();
-      return;
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const context = canvas.getContext('2d');
+      await page.render({ canvasContext: context, viewport }).promise;
+      images.push(canvas.toDataURL());
     }
-  } catch(e){
-    hideLoader();
-    log('Niespodziewany błąd diagnostyki: ' + (e.message || e));
+
+    loadingEl.style.display = 'none';
+
+    pageFlip = new St.PageFlip(flipbookEl, {
+      width: flipbookEl.clientWidth,
+      height: flipbookEl.clientHeight,
+      size: 'stretch',
+      startZIndex: 0,
+      showCover: true,
+      mobileScrollSupport: true,
+      useMouseEvents: true,
+      clickEventForward: true,
+    });
+
+    pageFlip.loadFromImages(images);
+
+    // Sterowanie przyciskami
+    document.getElementById('prevBtn').addEventListener('click', () => pageFlip.flipPrev('bottom'));
+    document.getElementById('nextBtn').addEventListener('click', () => pageFlip.flipNext('bottom'));
+
+    // Sterowanie klawiaturą
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft') pageFlip.flipPrev('bottom');
+      if (e.key === 'ArrowRight') pageFlip.flipNext('bottom');
+    });
+
+    // Dopasowanie przy zmianie rozmiaru okna
+    window.addEventListener('resize', () => {
+      pageFlip.updateFromHtml(pageFlipEl.querySelectorAll('.page'));
+    });
   }
-}
 
-function showFallbackIframe(){
-  // osadź PDF w iframe (jeśli serwer pozwala)
-  try {
-    const existing = document.querySelector('#flipbook iframe');
-    if (existing) return;
-    const ifr = document.createElement('iframe');
-    ifr.src = PDF_URL;
-    ifr.style.width = '100%';
-    ifr.style.height = '100%';
-    ifr.style.border = 'none';
-    // usuń loader
-    const l = document.getElementById('loader');
-    if (l) l.style.display = 'none';
-    // clean container then append iframe
-    flipbook.innerHTML = '';
-    flipbook.appendChild(ifr);
-    log('Osadzono PDF w iframe (fallback). Jeśli iframe jest pusty, sprawdź CORS lub ścieżkę.');
-  } catch(e){
-    log('Nie udało się osadzić iframe: ' + (e.message || e));
-  }
-}
-
-// przyciski
-document.getElementById('btnCheck').addEventListener('click', runFullDiagnostics);
-document.getElementById('btnShowIframe').addEventListener('click', showFallbackIframe);
-
-// auto-run diagnostyki na starcie
-setTimeout(()=>{ runFullDiagnostics(); }, 300);
+  initFlipbook('twoj_plik.pdf');
 </script>
+
 </body>
 </html>
-
