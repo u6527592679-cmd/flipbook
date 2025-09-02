@@ -8,8 +8,8 @@
 <!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
-<!-- turn.js - oficjalna wersja jQuery plugin -->
-<script src="https://rawcdn.githack.com/blasten/turn.js/4.1.0/turn.min.js"></script>
+<!-- turn.js 3.0.0 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/turn.js/3.0.0/turn.min.js"></script>
 
 <!-- PDF.js 2.x -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
@@ -21,7 +21,6 @@ body { margin:0; display:flex; flex-direction:column; align-items:center; backgr
 #flipbook .page canvas { width:100%; height:100%; object-fit:contain; display:block; }
 .controls { margin:10px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
 button { padding:6px 12px; border:none; background:#0ea5a4; color:white; border-radius:6px; cursor:pointer; }
-button:disabled { opacity:.5; cursor:default; }
 input[type=range]{ width:100px; }
 </style>
 </head>
@@ -46,7 +45,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 let pdfDoc = null;
 let zoomScale = 1;
 
-// Funkcja wczytująca PDF i tworząca flipbook
 async function loadPdfFlipbook(url) {
   pdfDoc = await pdfjsLib.getDocument(url).promise;
   $("#flipbook").html("").turn("destroy");
@@ -75,11 +73,9 @@ async function loadPdfFlipbook(url) {
   });
 }
 
-// Przyciski nawigacji
 document.getElementById("prev").onclick = ()=>$("#flipbook").turn("previous");
 document.getElementById("next").onclick = ()=>$("#flipbook").turn("next");
 
-// Fullscreen
 document.getElementById("fullscreen").onclick = ()=>{
   const elem = document.getElementById("flipbook");
   if(elem.requestFullscreen) elem.requestFullscreen();
@@ -88,16 +84,15 @@ document.getElementById("fullscreen").onclick = ()=>{
   else if(elem.msRequestFullscreen) elem.msRequestFullscreen();
 };
 
-// Zoom
 document.getElementById("zoom").addEventListener("input", e=>{
   zoomScale = parseFloat(e.target.value);
   $("#flipbook .page canvas").css("transform", `scale(${zoomScale})`);
   $("#flipbook .page").css("transform", `scale(${zoomScale})`);
 });
 
-// Wczytanie PDF automatycznie
+// Automatyczne wczytanie pliku PDF
 loadPdfFlipbook("twoj_plik.pdf");
 </script>
+
 </body>
 </html>
-
