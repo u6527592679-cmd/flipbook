@@ -3,14 +3,13 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Katalog produktów (Flipbook + zbliż lewa/prawa)</title>
+<title>Katalog produktów (Flipbook + zoom scroll)</title>
 <style>
   body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f5f6f8;color:#111}
   header{padding:12px 14px;text-align:center;background:#fff;border-bottom:1px solid #eceff1}
   h1{margin:0;font-size:20px}
   #wrap{max-width:1400px;margin:8px auto;padding:10px}
   #flipbook{margin:10px auto;width:calc(100% - 40px);max-width:1300px;background:#fff;border:1px solid #e6e9ee;position:relative;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.06)}
-  .loader{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,0.95);padding:10px 14px;border-radius:8px;z-index:1500;box-shadow:0 6px 18px rgba(0,0,0,0.08);font-weight:600;}
   .controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;margin:8px 0}
   button{padding:8px 12px;border-radius:8px;border:none;background:#1976d2;color:#fff;cursor:pointer}
   button.secondary{background:#6b7280}
@@ -18,24 +17,40 @@
   .page-info{margin-left:8px;color:#333}
   @media (max-width:700px){ #flipbook{width:calc(100% - 24px);} }
   #flipbook img {width:100%;height:auto;max-width:100%;object-fit:contain;display:block;margin:0 auto;}
+  /* Modal zoom */
   .zoom-modal {
     display:none;position:fixed;z-index:2000;left:0;top:0;width:100vw;height:100vh;
     background:rgba(0,0,0,0.89);justify-content:center;align-items:center;
+    overflow:hidden;
   }
   .zoom-modal.active {display:flex;}
-  .zoom-modal img {
-    max-width:95vw; max-height:95vh; border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,0.25);
-    background:#fff; display:block;
-    cursor: zoom-out;
-  }
   .zoom-modal .close {
     position:absolute;top:24px;right:40px;font-size:38px;color:#fff;font-weight:900;cursor:pointer;z-index:10;
     background:rgba(0,0,0,0.22);border-radius:10px;width:46px;height:46px;display:flex;align-items:center;justify-content:center;
     transition:background 0.2s;
   }
   .zoom-modal .close:hover {background:rgba(0,0,0,0.5);}
+  .zoom-img-wrap {
+    position:relative;display:flex;align-items:center;justify-content:center;flex:1 1 0%;
+    width:100vw;height:100vh;overflow:hidden;
+    touch-action:none;
+  }
+  .zoom-img-wrap img {
+    max-width:95vw; max-height:95vh; border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,0.25);
+    background:#fff; display:block;
+    cursor:grab;
+    user-select:none;
+    transition:box-shadow 0.2s;
+    will-change: transform;
+    position:relative;
+  }
+  .zoom-img-wrap img:active { cursor:grabbing; }
+  .zoom-hint {
+    position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,0.55);color:#fff;padding:5px 16px;border-radius:8px;font-size:15px;
+    z-index:20;pointer-events:none;
+  }
 </style>
-
 <!-- StPageFlip -->
 <script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
 </head>
@@ -58,7 +73,10 @@
 <!-- Modal do zbliżenia -->
 <div class="zoom-modal" id="zoomModal">
   <span class="close" id="zoomClose">&times;</span>
-  <img id="zoomImg" src="" alt="Zbliżona strona">
+  <div class="zoom-img-wrap" id="zoomImgWrap">
+    <img id="zoomImg" src="" alt="Zbliżona strona">
+    <div class="zoom-hint" id="zoomHint">Przytrzymaj i przeciągnij, aby przesuwać. Użyj scrolla, aby powiększać.</div>
+  </div>
 </div>
 
 <script>
@@ -83,8 +101,10 @@ const zoomLeftBtn = document.getElementById('zoomLeftBtn');
 const zoomRightBtn = document.getElementById('zoomRightBtn');
 const pageInfo = document.getElementById('pageInfo');
 const zoomModal = document.getElementById('zoomModal');
+const zoomImgWrap = document.getElementById('zoomImgWrap');
 const zoomImg = document.getElementById('zoomImg');
 const zoomClose = document.getElementById('zoomClose');
+const zoomHint = document.getElementById('zoomHint');
 
 let flipbook = null;
 
@@ -148,11 +168,93 @@ function showZoomModal(pageIndex) {
   zoomImg.src = pages[pageIndex];
   zoomModal.classList.add('active');
   document.body.style.overflow = 'hidden';
+  setTimeout(() => setupImgZoom(), 100);
 }
 function hideZoomModal() {
   zoomModal.classList.remove('active');
   zoomImg.src = '';
   document.body.style.overflow = '';
+  removeImgZoom();
+}
+
+// --- Zoom na obrazku w modalu ---
+let zoom = 1, minZoom = 1, maxZoom = 6, originX = 0, originY = 0, panX = 0, panY = 0, isPanning = false, startX = 0, startY = 0;
+function setupImgZoom() {
+  zoom = 1; panX = 0; panY = 0; originX = 0; originY = 0;
+  applyImgTransform();
+  zoomImg.style.cursor = 'grab';
+
+  zoomImg.onwheel = function(e) {
+    e.preventDefault();
+    let rect = zoomImg.getBoundingClientRect();
+    let mouseX = e.clientX - rect.left;
+    let mouseY = e.clientY - rect.top;
+
+    // Ustal punkt zoomowania (proporcje)
+    let relX = (mouseX - panX) / zoom;
+    let relY = (mouseY - panY) / zoom;
+
+    let delta = e.deltaY < 0 ? 1.15 : 0.87;
+    let newZoom = Math.max(minZoom, Math.min(maxZoom, zoom * delta));
+    // korekta przesunięcia żeby zoomować względem kursora
+    panX -= (relX * (newZoom - zoom));
+    panY -= (relY * (newZoom - zoom));
+    zoom = newZoom;
+    applyImgTransform();
+  };
+
+  zoomImg.onmousedown = function(e) {
+    if(zoom === 1) return;
+    isPanning = true;
+    startX = e.clientX - panX;
+    startY = e.clientY - panY;
+    zoomImg.style.cursor = 'grabbing';
+    document.onmousemove = function(e) {
+      if(!isPanning) return;
+      panX = e.clientX - startX;
+      panY = e.clientY - startY;
+      applyImgTransform();
+    };
+    document.onmouseup = function() {
+      isPanning = false;
+      zoomImg.style.cursor = 'grab';
+      document.onmousemove = null;
+      document.onmouseup = null;
+    };
+  };
+  zoomImg.ondblclick = function(e){
+    if(zoom===1) {
+      // powiększ do 2x wokół kursora
+      let rect = zoomImg.getBoundingClientRect();
+      let mouseX = e.clientX - rect.left;
+      let mouseY = e.clientY - rect.top;
+      let relX = (mouseX - panX) / zoom;
+      let relY = (mouseY - panY) / zoom;
+      let newZoom = 2;
+      panX -= (relX * (newZoom - zoom));
+      panY -= (relY * (newZoom - zoom));
+      zoom = newZoom;
+    } else {
+      zoom = 1; panX = 0; panY = 0;
+    }
+    applyImgTransform();
+  };
+  zoomImg.onmousemove = function(e) { if(zoom>1){zoomImg.style.cursor='grabbing';}else{zoomImg.style.cursor='grab';}};
+  zoomImg.onmouseleave = function(e){ if(isPanning) {isPanning=false; zoomImg.style.cursor='grab'; document.onmousemove=null; document.onmouseup=null;}};
+  // Ukryj podpowiedź po chwili
+  zoomHint.style.opacity = 1;
+  setTimeout(()=>{zoomHint.style.opacity=0;}, 5000);
+}
+function removeImgZoom() {
+  zoomImg.onwheel = null;
+  zoomImg.onmousedown = null;
+  zoomImg.ondblclick = null;
+  zoomImg.onmousemove = null;
+  zoomImg.onmouseleave = null;
+  zoomHint.style.opacity = 0;
+}
+function applyImgTransform() {
+  zoomImg.style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
 }
 
 async function init(){
@@ -205,7 +307,7 @@ async function init(){
   zoomModal.onclick = (e) => {
     if(e.target === zoomModal) hideZoomModal();
   };
-  zoomImg.onclick = hideZoomModal;
+  zoomImg.onclick = (e) => { if(zoom===1) hideZoomModal(); };
 
   flipbook.on('flip', updatePageInfo);
   flipbook.on('init', updatePageInfo);
@@ -216,6 +318,14 @@ async function init(){
     if(typeof flipbook.update === 'function') flipbook.update();
   },220);
   window.addEventListener('resize',onResize);
+
+  // Skalowanie po wyjściu z pełnego ekranu
+  document.addEventListener('fullscreenchange', ()=>{
+    setTimeout(()=>{
+      setContainerHeight();
+      if(flipbook && typeof flipbook.update === 'function') flipbook.update();
+    }, 150);
+  });
 }
 
 window.addEventListener('load',init);
