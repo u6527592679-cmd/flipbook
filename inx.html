@@ -1,12 +1,150 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="utf-8">
-  <meta http-equiv="refresh" content="0; url=inx.html">
-  <title>Przekierowanie...</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Katalog produktów (Flipbook z PNG)</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f5f6f8;color:#111}
+  header{padding:12px 14px;text-align:center;background:#fff;border-bottom:1px solid #eceff1}
+  h1{margin:0;font-size:20px}
+  #wrap{max-width:1400px;margin:8px auto;padding:10px}
+  #flipbook{margin:10px auto;width:calc(100% - 40px);max-width:1300px;background:#fff;border:1px solid #e6e9ee;position:relative;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.06)}
+  .loader{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,0.95);padding:10px 14px;border-radius:8px;z-index:1500;box-shadow:0 6px 18px rgba(0,0,0,0.08);font-weight:600;}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;margin:8px 0}
+  button{padding:8px 12px;border-radius:8px;border:none;background:#1976d2;color:#fff;cursor:pointer}
+  button.secondary{background:#6b7280}
+  button:disabled{opacity:.55;cursor:not-allowed}
+  .page-info{margin-left:8px;color:#333}
+  @media (max-width:700px){ #flipbook{width:calc(100% - 24px);} }
+  #flipbook img {width:100%;height:auto;max-width:100%;object-fit:contain;display:block;margin:0 auto;}
+</style>
+
+<!-- StPageFlip -->
+<script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
 </head>
 <body>
-  <p>Trwa przekierowanie… jeśli nie nastąpi automatycznie, <a href="inxx.html">kliknij tutaj</a>.</p>
+<header><h1>Katalog produktów</h1></header>
+
+<div id="wrap">
+  <div id="flipbook" aria-live="polite"></div>
+
+  <div class="controls" role="toolbar" aria-label="Kontrolki flipbook">
+    <button id="prevBtn" class="secondary" disabled>◀ Poprzednia</button>
+    <button id="nextBtn" disabled>Następna ▶</button>
+    <button id="fullBtn" disabled>Pełny ekran</button>
+    <span class="page-info" id="pageInfo">Ładowanie…</span>
+  </div>
+</div>
+
+<script>
+const NUM_PAGES = 19;
+const FILE_BASE = '/pages/twoj_plik1-';
+const FILE_EXT = '.png';
+
+// Generuj ścieżki do obrazków
+function getPagesArray() {
+  const arr = [];
+  for(let i=1;i<=NUM_PAGES;i++) {
+    const num = i.toString().padStart(2,'0');
+    arr.push(FILE_BASE + num + FILE_EXT);
+  }
+  return arr;
+}
+
+const container = document.getElementById('flipbook');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const fullBtn = document.getElementById('fullBtn');
+const pageInfo = document.getElementById('pageInfo');
+
+let flipbook = null;
+
+function setContainerHeight(){
+  const headerH = document.querySelector('header').offsetHeight || 0;
+  const controlsH = document.querySelector('.controls').offsetHeight || 0;
+  const margin = 18;
+  const available = Math.max(200, window.innerHeight - headerH - controlsH - margin);
+  container.style.height = available + 'px';
+}
+
+function nextPage(){ if(flipbook){ if(typeof flipbook.flipNext==='function'){ try{ flipbook.flipNext(); return;}catch(e){} } if(typeof flipbook.turnToNextPage==='function') flipbook.turnToNextPage(); }}
+function prevPage(){ if(flipbook){ if(typeof flipbook.flipPrev==='function'){ try{ flipbook.flipPrev(); return;}catch(e){} } if(typeof flipbook.turnToPrevPage==='function') flipbook.turnToPrevPage(); }}
+function toggleFull() {
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (container.requestFullscreen) {
+            container.requestFullscreen({ navigationUI: 'hide' }).catch(()=>{});
+        } else if (container.webkitRequestFullscreen) {
+            container.webkitRequestFullscreen({ navigationUI: 'hide' });
+        } else {
+            container.style.position = 'fixed';
+            container.style.top = '0';
+            container.style.left = '0';
+            container.style.width = '100vw';
+            container.style.height = '100vh';
+            container.style.zIndex = '9999';
+        }
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen().catch(()=>{});
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        } else {
+            container.style.position = '';
+            container.style.top = '';
+            container.style.left = '';
+            container.style.width = '';
+            container.style.height = '';
+            container.style.zIndex = '';
+        }
+    }
+}
+
+function debounce(fn,wait){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
+
+function updatePageInfo() {
+  if(!flipbook) return;
+  let cur = 0, total = NUM_PAGES;
+  if(typeof flipbook.getCurrentPageIndex==='function') {
+    cur = flipbook.getCurrentPageIndex();
+  } else if(typeof flipbook.getCurrentPageIndex==='number') {
+    cur = flipbook.getCurrentPageIndex;
+  }
+  pageInfo.innerText = `Strona ${cur+1} / ${total}`;
+}
+
+async function init(){
+  setContainerHeight();
+
+  const pages = getPagesArray();
+
+  // Domyślna proporcja A4
+  flipbook = new St.PageFlip(container, {
+    width:900, height:1200,
+    size:'stretch', autoSize:true,
+    minWidth:300, maxWidth:2000, minHeight:300, maxHeight:3000,
+    showCover:false, usePortrait:true, maxShadowOpacity:0.6, mobileScrollSupport:true
+  });
+  flipbook.loadFromImages(pages);
+
+  prevBtn.disabled=false; nextBtn.disabled=false; fullBtn.disabled=false;
+  prevBtn.onclick = prevPage; nextBtn.onclick = nextPage; fullBtn.onclick = toggleFull;
+  document.addEventListener('keydown', (e)=>{ if(e.key==='ArrowRight') nextPage(); if(e.key==='ArrowLeft') prevPage(); });
+
+  flipbook.on('flip', updatePageInfo);
+
+  // Ustaw info po załadowaniu
+  flipbook.on('init', updatePageInfo);
+  setTimeout(updatePageInfo, 500);
+
+  const onResize = debounce(()=>{
+    setContainerHeight();
+    if(typeof flipbook.update === 'function') flipbook.update();
+  },220);
+  window.addEventListener('resize',onResize);
+}
+
+window.addEventListener('load',init);
+</script>
 </body>
 </html>
-
