@@ -18,7 +18,7 @@ body { margin:0; display:flex; flex-direction:column; align-items:center; backgr
 #flipbook { width:900px; height:600px; margin:20px auto; }
 #flipbook .page { width:450px; height:600px; background:white; position:relative; }
 #flipbook .page canvas { width:100%; height:100%; object-fit:contain; display:block; }
-.controls { margin:10px; display:flex; gap:10px; }
+.controls { margin:10px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
 button { padding:6px 12px; border:none; background:#0ea5a4; color:white; border-radius:6px; cursor:pointer; }
 button:disabled { opacity:.5; cursor:default; }
 input[type=range]{ width:100px; }
@@ -38,10 +38,9 @@ input[type=range]{ width:100px; }
   </label>
 </div>
 
-<audio id="flipSound" src="page-flip.mp3"></audio> <!-- dodaj plik dźwiękowy do folderu -->
-
 <script>
 const pdfjsLib = window['pdfjs-dist/build/pdf'];
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.349/pdf.worker.min.js';
 let pdfDoc = null;
 let zoomScale = 1;
 
@@ -69,12 +68,7 @@ async function loadPdfFlipbook(url) {
     width: 900,
     height: 600,
     autoCenter: true,
-    display: 'double',
-    when: {
-      turned: function(e, page) {
-        document.getElementById("flipSound").play();
-      }
-    }
+    display: 'double'
   });
 }
 
@@ -98,7 +92,7 @@ document.getElementById("zoom").addEventListener("input", e=>{
   $("#flipbook .page").css("transform", `scale(${zoomScale})`);
 });
 
-// automatyczne wczytanie twoj_plik.pdf z tej samej lokalizacji
+// automatyczne wczytanie twoj_plik.pdf
 loadPdfFlipbook("twoj_plik.pdf");
 </script>
 </body>
