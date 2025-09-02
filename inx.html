@@ -8,10 +8,11 @@
     h1 { margin: 20px 0; font-size: 24px; }
     #flipbook { margin: 0 auto; width: 90%; max-width: 800px; height: 600px; border: 1px solid #ccc; background: #fff; position: relative; }
     .loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 18px; font-weight: bold; color: #333; }
-    .controls { margin: 15px; }
+    .controls { margin: 15px; z-index: 10; position: relative; }
     .controls button { padding: 8px 16px; margin: 0 5px; font-size: 14px; cursor: pointer; }
     .controls button:disabled { cursor: not-allowed; opacity: 0.6; }
   </style>
+
   <!-- PDF.js -->
   <script src="pdfjs/pdf.js"></script>
   <!-- StPageFlip -->
@@ -23,8 +24,8 @@
 <div id="flipbook"></div>
 
 <div class="controls">
-  <button id="prevBtn" disabled>← Poprzednia</button>
-  <button id="nextBtn" disabled>Następna →</button>
+  <button type="button" class="btn-book-prev">← Poprzednia</button>
+  <button type="button" class="btn-book-next">Następna →</button>
 </div>
 
 <script>
@@ -45,7 +46,6 @@ window.onload = async function() {
     let flipbook;
 
     try {
-        // Poprawne pobranie dokumentu PDF
         const loadingTask = pdfjsLib.getDocument(pdfUrl);
         pdfDoc = await loadingTask.promise;
 
@@ -76,14 +76,9 @@ window.onload = async function() {
         flipbook.loadFromImages(images);
         loader.style.display = "none";
 
-        // Przyciski
-        const prevBtn = document.getElementById("prevBtn");
-        const nextBtn = document.getElementById("nextBtn");
-        prevBtn.disabled = false;
-        nextBtn.disabled = false;
-
-        prevBtn.addEventListener("click", () => flipbook.flipPrev());
-        nextBtn.addEventListener("click", () => flipbook.flipNext());
+        // Przyciski – działają teraz jak w demo
+        document.querySelector(".btn-book-prev").addEventListener("click", () => flipbook.flipPrev());
+        document.querySelector(".btn-book-next").addEventListener("click", () => flipbook.flipNext());
 
         // Strzałki klawiatury
         document.addEventListener("keydown", (event) => {
