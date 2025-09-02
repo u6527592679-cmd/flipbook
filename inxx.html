@@ -5,32 +5,95 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Katalog produktów — szybkie renderowanie</title>
   <style>
-    body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f5f6f8;color:#111}
-    header{padding:12px 14px;text-align:center;background:#fff;border-bottom:1px solid #eceff1}
-    h1{margin:0;font-size:20px}
-    #wrap{max-width:1400px;margin:8px auto;padding:10px}
-    #flipbook{margin:10px auto;width:calc(100% - 40px);max-width:1300px;background:#fff;border:1px solid #e6e9ee;position:relative;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.06)}
-    .loader{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,0.95);padding:10px 14px;border-radius:8px;z-index:1500;box-shadow:0 6px 18px rgba(0,0,0,0.08);font-weight:600}
-    .controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;margin:8px 0}
-    button{padding:8px 12px;border-radius:8px;border:none;background:#1976d2;color:#fff;cursor:pointer}
-    button.secondary{background:#6b7280}
-    button:disabled{opacity:.55;cursor:not-allowed}
-    .page-info{margin-left:8px;color:#333}
-    @media (max-width:700px){ #flipbook{width:calc(100% - 24px);} }
+    /* Stylizacja strony i flipbooka */
+    body {
+      font-family: Arial,Helvetica,sans-serif;
+      margin: 0;
+      background: #f5f6f8;
+      color: #111;
+    }
+    header {
+      padding: 12px 14px;
+      text-align: center;
+      background: #fff;
+      border-bottom: 1px solid #eceff1;
+    }
+    h1 {
+      margin: 0;
+      font-size: 20px;
+    }
+    #wrap {
+      max-width: 1400px;
+      margin: 8px auto;
+      padding: 10px;
+    }
+    #flipbook {
+      margin: 10px auto;
+      width: calc(100% - 40px);
+      max-width: 1300px;
+      background: #fff;
+      border: 1px solid #e6e9ee;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+    }
+    .loader {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%,-50%);
+      background: rgba(255,255,255,0.95);
+      padding: 10px 14px;
+      border-radius: 8px;
+      z-index: 1500;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+      font-weight: 600;
+    }
+    .controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      margin: 8px 0;
+    }
+    button {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: none;
+      background: #1976d2;
+      color: #fff;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #6b7280;
+    }
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    .page-info {
+      margin-left: 8px;
+      color: #333;
+    }
+    @media (max-width:700px) {
+      #flipbook { width: calc(100% - 24px); }
+    }
   </style>
 
-  <!-- PDF.js -->
+  <!-- Dołączenie PDF.js -->
   <script src="pdfjs/pdf.js"></script>
   <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.js';</script>
-  <!-- StPageFlip -->
+  <!-- Dołączenie StPageFlip -->
   <script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
 </head>
 <body>
-  <header><h1>Katalog produktów — szybkie</h1></header>
+  <header><h1>Katalog produktów — flipbook</h1></header>
 
   <div id="wrap">
     <div id="flipbook" aria-live="polite"></div>
 
+    <!-- Kontrolki do nawigacji -->
     <div class="controls" role="toolbar" aria-label="Kontrolki flipbook">
       <button id="prevBtn" class="secondary" disabled>◀ Poprzednia</button>
       <button id="nextBtn" disabled>Następna ▶</button>
@@ -41,17 +104,20 @@
   </div>
 
 <script>
-/* ========== USTAWIENIA ========== */
-const PDF_URL = 'twoj_plik.pdf';
+// ======= USTAWIENIA =======
+const PDF_URL = 'twoj_plik.pdf';  // Ścieżka do Twojego pliku PDF
 const DPR = Math.max(1, window.devicePixelRatio || 1);
-/* MAX_CANVAS_DIM zabezpiecza przed tworzeniem zbyt dużego canvasa */
+// Maksymalny rozmiar canvas, aby nie utworzyć zbyt dużego elementu
 const MAX_CANVAS_DIM = 14000;
-/* ================================= */
+// ==========================
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.js';
 
 const container = document.getElementById('flipbook');
-const loader = document.createElement('div'); loader.className='loader'; loader.innerText='Przygotowywanie...'; container.appendChild(loader);
+const loader = document.createElement('div');
+loader.className = 'loader';
+loader.innerText = 'Przygotowywanie...';
+container.appendChild(loader);
 
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
@@ -60,13 +126,20 @@ const pageInfo = document.getElementById('pageInfo');
 
 let pdfDoc = null;
 let flipbook = null;
-let pagesData = [];
-let pagesCache = {}; // cache [index] -> dataURL
+let pagesData = [];        // Tablica z obrazami stron (data URL)
+let pagesCache = {};       // Cache: index strony -> data URL
 
-/* placeholder tiny */
-function makePlaceholder(){ const c=document.createElement('canvas'); c.width=4; c.height=4; const ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,4,4); return c.toDataURL(); }
+// Tworzy bardzo mały biały placeholder (pozwala szybko zainicjować flipbook)
+function makePlaceholder(){
+  const c = document.createElement('canvas');
+  c.width = 4; c.height = 4;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0,0,4,4);
+  return c.toDataURL();
+}
 
-/* dynamic container height to fill viewport (minus header and controls) */
+// Ustawia wysokość kontenera flipbooka tak, aby wypełniał dostępną przestrzeń (minus nagłówek i kontrolki)
 function setContainerHeight(){
   const headerH = document.querySelector('header').offsetHeight || 0;
   const controlsH = document.querySelector('.controls').offsetHeight || 0;
@@ -75,8 +148,8 @@ function setContainerHeight(){
   container.style.height = available + 'px';
 }
 
-/* compute fit scale so page covers container (no hi-res multipliers) */
-async function computeFitScale(pageNumber, mode='cover'){
+// Oblicza skalę renderowania strony, tak aby wypełnić (lub zmieścić) obszar kontenera
+async function computeFitScale(pageNumber, mode = 'cover'){
   const page = await pdfDoc.getPage(pageNumber);
   const vp = page.getViewport({ scale: 1 });
   const targetW = container.clientWidth * DPR;
@@ -86,19 +159,19 @@ async function computeFitScale(pageNumber, mode='cover'){
   return (mode === 'cover') ? Math.max(sx, sy) : Math.min(sx, sy);
 }
 
-/* render page to image at fit scale (fast-ish). Protect against too big canvases. */
-async function renderPageToDataUrl(pageNumber, scale){
-  // guard predicted dimensions
+// Renderuje pojedynczą stronę PDF na obraz w podanej skali
+async function renderPageToDataUrl(pageNumber, scale) {
   const page = await pdfDoc.getPage(pageNumber);
   const base = page.getViewport({ scale: 1 });
   let predictedW = Math.round(base.width * scale);
   let predictedH = Math.round(base.height * scale);
+  // Jeśli rozmiary byłyby zbyt duże, zmniejszamy skalę
   if (predictedW > MAX_CANVAS_DIM || predictedH > MAX_CANVAS_DIM) {
     const reduce = Math.min(MAX_CANVAS_DIM / predictedW, MAX_CANVAS_DIM / predictedH);
     scale = scale * reduce;
     predictedW = Math.round(base.width * scale);
     predictedH = Math.round(base.height * scale);
-    console.warn('Scale reduced to avoid huge canvas for page', pageNumber, 'new scale', scale.toFixed(2));
+    console.warn('Skala zredukowana dla strony', pageNumber, 'nowa skala', scale.toFixed(2));
   }
   const viewport = page.getViewport({ scale });
   const canvas = document.createElement('canvas');
@@ -109,25 +182,27 @@ async function renderPageToDataUrl(pageNumber, scale){
   return canvas.toDataURL('image/jpeg', 0.9);
 }
 
-/* apply images array -> flipbook (safe methods) */
+// Wstawia obrazy (data URL) do flipbooka
 function applyImages(images) {
-  try {
-    if (!flipbook) return;
-    if (typeof flipbook.updateFromImages === 'function') {
-      flipbook.updateFromImages(images);
-      return;
-    }
-    if (typeof flipbook.loadFromImages === 'function') {
-      flipbook.loadFromImages(images);
-      return;
-    }
-    // fallback: replace <img> if present
-    const imgs = container.querySelectorAll('img');
-    for (let i=0;i<images.length && i<imgs.length;i++) imgs[i].src = images[i];
-  } catch(e){ console.error(e); }
+  if (!flipbook) return;
+  // Jeśli biblioteka udostępnia metodę updateFromImages (StPageFlip v2+), używamy jej
+  if (typeof flipbook.updateFromImages === 'function') {
+    flipbook.updateFromImages(images);
+    return;
+  }
+  // W starszej wersji może być loadFromImages
+  if (typeof flipbook.loadFromImages === 'function') {
+    flipbook.loadFromImages(images);
+    return;
+  }
+  // Fallback: zmieniamy src <img> jeśli flipbook używa zwykłych <img>
+  const imgs = container.querySelectorAll('img');
+  for (let i=0; i<images.length && i<imgs.length; i++) {
+    imgs[i].src = images[i];
+  }
 }
 
-/* ensure page is rendered (only fit scale). Also optionally preload neighbors. */
+// Zapewnia, że dana strona jest wyrenderowana i dostępna w tablicy pagesData
 async function ensurePage(indexZeroBased) {
   if (pagesCache[indexZeroBased]) {
     pagesData[indexZeroBased] = pagesCache[indexZeroBased];
@@ -142,95 +217,145 @@ async function ensurePage(indexZeroBased) {
   applyImages(pagesData);
 }
 
-/* navigation helpers */
+// Przejście do następnej strony flipbooka
 function nextPage(){
   if (!flipbook) return;
-  if (typeof flipbook.flipNext === 'function') { try { flipbook.flipNext(); return; } catch(e){} }
-  if (typeof flipbook.turnToNextPage === 'function') flipbook.turnToNextPage();
+  if (typeof flipbook.flipNext === 'function') {
+    try { flipbook.flipNext(); return; } catch(e){}
+  }
+  if (typeof flipbook.turnToNextPage === 'function') {
+    flipbook.turnToNextPage();
+  }
 }
+// Przejście do poprzedniej strony flipbooka
 function prevPage(){
   if (!flipbook) return;
-  if (typeof flipbook.flipPrev === 'function') { try { flipbook.flipPrev(); return; } catch(e){} }
-  if (typeof flipbook.turnToPrevPage === 'function') flipbook.turnToPrevPage();
+  if (typeof flipbook.flipPrev === 'function') {
+    try { flipbook.flipPrev(); return; } catch(e){}
+  }
+  if (typeof flipbook.turnToPrevPage === 'function') {
+    flipbook.turnToPrevPage();
+  }
 }
 
-/* fullscreen toggle */
-function toggleFull(){ if (!document.fullscreenElement) container.requestFullscreen?.() || container.webkitRequestFullscreen?.(); else document.exitFullscreen?.(); }
+// Przełącza widok pełnoekranowy flipbooka
+function toggleFull(){
+  if (!document.fullscreenElement) {
+    container.requestFullscreen?.() || container.webkitRequestFullscreen?.();
+  } else {
+    document.exitFullscreen?.();
+  }
+}
 
-/* debounce helper */
-function debounce(fn, wait){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
+// Debounce – przydaje się przy zdarzeniu resize
+function debounce(fn, wait) {
+  let t;
+  return (...a) => {
+    clearTimeout(t);
+    t = setTimeout(()=>fn(...a), wait);
+  };
+}
 
-/* ========== init ========== */
+// ======== INICJALIZACJA ========
 async function init(){
-  try{
+  try {
+    // Ustawienie wysokości kontenera na podstawie okna przeglądarki
     setContainerHeight();
+    // Załaduj dokument PDF
     const loadingTask = pdfjsLib.getDocument(PDF_URL);
     pdfDoc = await loadingTask.promise;
     const numPages = pdfDoc.numPages;
     pageInfo.innerText = `Strona 0 / ${numPages}`;
     loader.innerText = `Przygotowywanie dokumentu — ${numPages} stron`;
 
-    // placeholders
+    // Przygotuj tablicę z placeholderami na obrazy stron
     const placeholder = makePlaceholder();
     pagesData = new Array(numPages).fill(placeholder);
 
-    // init flipbook
+    // Inicjalizacja flipbooka
     flipbook = new St.PageFlip(container, {
       width: 900, height: 1100,
       size: 'stretch', autoSize: true,
-      minWidth: 300, maxWidth: 2000, minHeight: 300, maxHeight: 3000,
-      showCover: false, usePortrait: true, maxShadowOpacity: 0.6, mobileScrollSupport: true
+      minWidth: 300, maxWidth: 2000,
+      minHeight: 300, maxHeight: 3000,
+      showCover: false, usePortrait: true,
+      maxShadowOpacity: 0.6, mobileScrollSupport: true
     });
+    // Załaduj flipbook z placeholderami (puste białe strony)
     flipbook.loadFromImages(pagesData);
 
-    // controls
-    prevBtn.disabled=false; nextBtn.disabled=false; fullBtn.disabled=false;
-    prevBtn.onclick = prevPage; nextBtn.onclick = nextPage; fullBtn.onclick = toggleFull;
-    document.addEventListener('keydown', (e)=>{ if(e.key==='ArrowRight') nextPage(); if(e.key==='ArrowLeft') prevPage(); });
+    // Włącz przyciski nawigacji
+    prevBtn.disabled = false;
+    nextBtn.disabled = false;
+    fullBtn.disabled = false;
+    prevBtn.onclick = prevPage;
+    nextBtn.onclick = nextPage;
+    fullBtn.onclick = toggleFull;
+    // Obsługa klawiatury: strzałki lewo/prawo
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') nextPage();
+      if (e.key === 'ArrowLeft') prevPage();
+    });
 
+    // Gdy flipbook wykona flip (zmianę strony)
     if (typeof flipbook.on === 'function') {
-      flipbook.on('flip', async (e)=> {
-        const idx = e.data;
+      flipbook.on('flip', async (e) => {
+        const idx = e.data; // indeks aktualnie widocznej lewej strony (0-based)
         pageInfo.innerText = `Strona ${idx+1} / ${numPages}`;
-        // render current page (fit) + preload neighbors
-        loader.style.display='block';
+        loader.style.display = 'block';
         loader.innerText = `Wczytywanie strony ${idx+1}...`;
+        // Renderuj bieżącą stronę (by mieć aktualny obraz)
         await ensurePage(idx);
-        // preload prev & next quickly (no heavy parallelism)
-        if (idx-1 >= 0 && !pagesCache[idx-1]) { ensurePage(idx-1).catch(()=>{}); }
-        if (idx+1 < numPages && !pagesCache[idx+1]) { ensurePage(idx+1).catch(()=>{}); }
-        loader.style.display='none';
+        // Wstępne ładowanie sąsiednich stron dla płynniejszej nawigacji
+        if (idx - 1 >= 0 && !pagesCache[idx - 1]) {
+          ensurePage(idx - 1).catch(()=>{});
+        }
+        if (idx + 1 < numPages && !pagesCache[idx + 1]) {
+          ensurePage(idx + 1).catch(()=>{});
+        }
+        loader.style.display = 'none';
       });
     }
 
-    // render first visible pages (0 and 1)
+    // Na start wczytaj pierwsze dwie strony
     loader.innerText = 'Wczytywanie pierwszych stron...';
     await ensurePage(0);
-    if (numPages >= 2) await ensurePage(1);
-    loader.style.display='none';
-    const cur = (typeof flipbook.getCurrentPageIndex === 'function') ? flipbook.getCurrentPageIndex() : 0;
+    if (numPages >= 2) {
+      await ensurePage(1);
+    }
+    loader.style.display = 'none';
+    // Aktualizuj informację o stronach
+    const cur = (typeof flipbook.getCurrentPageIndex === 'function') ?
+      flipbook.getCurrentPageIndex() : 0;
     pageInfo.innerText = `Strona ${cur+1} / ${numPages}`;
 
-    // on resize: adjust container and re-render current page only
-    const onResize = debounce(async ()=>{
+    // Obsługa zmiany rozmiaru okna – skalowanie aktualnej strony
+    const onResize = debounce(async () => {
       setContainerHeight();
-      const curIdx = (typeof flipbook.getCurrentPageIndex === 'function') ? flipbook.getCurrentPageIndex() : 0;
-      // clear cache for current page so we re-render in new fit size
+      const curIdx = (typeof flipbook.getCurrentPageIndex === 'function') ?
+        flipbook.getCurrentPageIndex() : 0;
+      // Wyczyść cache bieżącej strony, aby zrenderować ją ponownie w nowej skali
       delete pagesCache[curIdx];
-      loader.style.display='block'; loader.innerText = 'Dopasowywanie do rozmiaru ekranu...';
+      loader.style.display = 'block';
+      loader.innerText = 'Dopasowywanie do rozmiaru ekranu...';
       await ensurePage(curIdx);
-      loader.style.display='none';
-      try { if (typeof flipbook.turnToPage === 'function') flipbook.turnToPage(curIdx); } catch(e){}
+      loader.style.display = 'none';
+      try {
+        if (typeof flipbook.turnToPage === 'function') {
+          flipbook.turnToPage(curIdx);
+        }
+      } catch(e){}
     }, 220);
 
     window.addEventListener('resize', onResize);
 
-  } catch(err){
+  } catch(err) {
     console.error('Błąd inicjalizacji:', err);
     loader.innerText = 'Błąd ładowania dokumentu — sprawdź konsolę';
   }
 }
 
+// Rozpocznij inicjalizację po załadowaniu strony
 window.addEventListener('load', init);
 </script>
 </body>
