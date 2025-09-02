@@ -3,124 +3,75 @@
 <head>
   <meta charset="UTF-8">
   <title>Flipbook PDF</title>
-  <link rel="stylesheet" href="StPageFlip-2.0.0/page-flip.browser.css">
+
+  <!-- PageFlip JS -->
+  <script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
+
+  <!-- CSS (jeśli masz plik page-flip.browser.css, odkomentuj) -->
+  <!-- <link rel="stylesheet" href="StPageFlip-2.0.0/page-flip.browser.css"> -->
+
   <style>
     body {
       margin: 0;
-      background: #2e2e2e;
+      background: #111;
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
       overflow: hidden;
     }
-
-    /* viewport dla flipbooka */
-    .magazine-viewport {
-      width: 100%;
-      height: 100%;
-      position: relative;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    /* kontener samego flipbooka */
-    .magazine {
-      width: 90%;
-      height: 90%;
-      max-width: 1200px;
-      max-height: 90vh;
-      box-shadow: 0 0 30px rgba(0,0,0,0.6);
-      background: #fff;
-      border-radius: 10px;
-      overflow: hidden;
-    }
-
-    /* przyciski */
-    .controls {
-      position: absolute;
-      bottom: 20px;
-      width: 100%;
-      text-align: center;
-    }
-
-    .controls button {
-      margin: 0 10px;
-      padding: 10px 20px;
-      background: #007bff;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 14px;
-    }
-
-    .controls button:hover {
-      background: #0056b3;
+    #flipbook {
+      width: 90vw;
+      height: 90vh;
     }
   </style>
 </head>
 <body>
-  <div class="magazine-viewport">
-    <div id="flipbook" class="magazine"></div>
-
-    <div class="controls">
-      <button id="prevBtn">◀ Poprzednia</button>
-      <button id="nextBtn">Następna ▶</button>
-    </div>
-  </div>
+  <div id="flipbook"></div>
 
   <script src="pdfjs/pdf.js"></script>
-  <script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = "pdfjs/pdf.worker.js";
 
-    const flipbookElement = document.getElementById("flipbook");
-    let flipbook;
-
-    async function renderPageToDataUrl(pdf, pageNum) {
-      const page = await pdf.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 2 }); // większa jakość
+    async function renderPageToDataUrl(pdf, pageNumber) {
+      const page = await pdf.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: 2.5 });
       const canvas = document.createElement("canvas");
       const context = canvas.getContext("2d", { willReadFrequently: true });
       canvas.width = viewport.width;
       canvas.height = viewport.height;
+
       await page.render({ canvasContext: context, viewport }).promise;
       return canvas.toDataURL();
     }
 
     async function init() {
       const pdf = await pdfjsLib.getDocument("twoj_plik.pdf").promise;
-      const pageCount = pdf.numPages;
+      const pages = [];
 
-      flipbook = new St.PageFlip(flipbookElement, {
-        width: 600,
-        height: 800,
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const img = await renderPageToDataUrl(pdf, i);
+        pages.push(img); // 🔥 poprawka — wrzucamy tylko URL, nie obiekt
+      }
+
+      const flipbook = new St.PageFlip(document.getElementById("flipbook"), {
+        width: 800,
+        height: 1000,
         size: "stretch",
         minWidth: 315,
         maxWidth: 2000,
         minHeight: 400,
         maxHeight: 2500,
-        maxShadowOpacity: 0.5,
-        showCover: true,
-        mobileScrollSupport: true
+        drawShadow: true,
+        flippingTime: 600,
+        usePortrait: true,
+        autoSize: true,
       });
 
-      const pages = [];
-      for (let i = 1; i <= pageCount; i++) {
-        const img = await renderPageToDataUrl(pdf, i);
-        pages.push({ src: img });
-      }
-
       flipbook.loadFromImages(pages);
-
-      document.getElementById("prevBtn").addEventListener("click", () => flipbook.flipPrev());
-      document.getElementById("nextBtn").addEventListener("click", () => flipbook.flipNext());
     }
 
     init();
   </script>
 </body>
 </html>
-
