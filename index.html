@@ -1,77 +1,105 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8">
-  <title>Flipbook PDF</title>
+<meta charset="utf-8">
+<title>Flipbook PDF.js + Turn.js</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- PageFlip JS -->
-  <script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
+<!-- PDF.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.349/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.349/pdf.worker.min.js"></script>
 
-  <!-- CSS (jeśli masz plik page-flip.browser.css, odkomentuj) -->
-  <!-- <link rel="stylesheet" href="StPageFlip-2.0.0/page-flip.browser.css"> -->
+<!-- jQuery + turn.js -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/turn.js/4.1.0/turn.min.js"></script>
 
-  <style>
-    body {
-      margin: 0;
-      background: #111;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      overflow: hidden;
-    }
-    #flipbook {
-      width: 90vw;
-      height: 90vh;
-    }
-  </style>
+<style>
+body { margin:0; display:flex; flex-direction:column; align-items:center; background:#f3f4f6; font-family:sans-serif; }
+#flipbook { width:900px; height:600px; margin:20px auto; }
+#flipbook .page { width:450px; height:600px; background:white; position:relative; }
+#flipbook .page canvas { width:100%; height:100%; object-fit:contain; display:block; }
+.controls { margin:10px; display:flex; gap:10px; }
+button { padding:6px 12px; border:none; background:#0ea5a4; color:white; border-radius:6px; cursor:pointer; }
+button:disabled { opacity:.5; cursor:default; }
+input[type=range]{ width:100px; }
+</style>
 </head>
 <body>
-  <div id="flipbook"></div>
 
-  <script src="pdfjs/pdf.js"></script>
-  <script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "pdfjs/pdf.worker.js";
+<h2>Flipbook demo</h2>
+<div id="flipbook"></div>
 
-    async function renderPageToDataUrl(pdf, pageNumber) {
-      const page = await pdf.getPage(pageNumber);
-      const viewport = page.getViewport({ scale: 2.5 });
-      const canvas = document.createElement("canvas");
-      const context = canvas.getContext("2d", { willReadFrequently: true });
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
+<div class="controls">
+  <button id="prev">◀ Poprzednia</button>
+  <button id="next">Następna ▶</button>
+  <button id="fullscreen">Fullscreen</button>
+  <label>Zoom:
+    <input type="range" id="zoom" min="0.5" max="2" step="0.05" value="1">
+  </label>
+</div>
 
-      await page.render({ canvasContext: context, viewport }).promise;
-      return canvas.toDataURL();
-    }
+<audio id="flipSound" src="page-flip.mp3"></audio> <!-- dodaj plik dźwiękowy do folderu -->
 
-    async function init() {
-      const pdf = await pdfjsLib.getDocument("twoj_plik.pdf").promise;
-      const pages = [];
+<script>
+const pdfjsLib = window['pdfjs-dist/build/pdf'];
+let pdfDoc = null;
+let zoomScale = 1;
 
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const img = await renderPageToDataUrl(pdf, i);
-        pages.push(img); // 🔥 poprawka — wrzucamy tylko URL, nie obiekt
+async function loadPdfFlipbook(url) {
+  pdfDoc = await pdfjsLib.getDocument(url).promise;
+  $("#flipbook").html("").turn("destroy");
+
+  for (let i=1; i<=pdfDoc.numPages; i++) {
+    const page = await pdfDoc.getPage(i);
+    const viewport = page.getViewport({scale:1});
+    const scale = 450 / viewport.width;
+    const scaledViewport = page.getViewport({scale});
+    const canvas = document.createElement("canvas");
+    canvas.width = scaledViewport.width;
+    canvas.height = scaledViewport.height;
+    await page.render({canvasContext: canvas.getContext("2d"), viewport: scaledViewport}).promise;
+
+    const pageDiv = document.createElement("div");
+    pageDiv.className = "page";
+    pageDiv.appendChild(canvas);
+    $("#flipbook").append(pageDiv);
+  }
+
+  $("#flipbook").turn({
+    width: 900,
+    height: 600,
+    autoCenter: true,
+    display: 'double',
+    when: {
+      turned: function(e, page) {
+        document.getElementById("flipSound").play();
       }
-
-      const flipbook = new St.PageFlip(document.getElementById("flipbook"), {
-        width: 800,
-        height: 1000,
-        size: "stretch",
-        minWidth: 315,
-        maxWidth: 2000,
-        minHeight: 400,
-        maxHeight: 2500,
-        drawShadow: true,
-        flippingTime: 600,
-        usePortrait: true,
-        autoSize: true,
-      });
-
-      flipbook.loadFromImages(pages);
     }
+  });
+}
 
-    init();
-  </script>
+// przewijanie
+document.getElementById("prev").onclick = ()=>$("#flipbook").turn("previous");
+document.getElementById("next").onclick = ()=>$("#flipbook").turn("next");
+
+// fullscreen
+document.getElementById("fullscreen").onclick = ()=>{
+  const elem = document.getElementById("flipbook");
+  if(elem.requestFullscreen) elem.requestFullscreen();
+  else if(elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+  else if(elem.mozRequestFullScreen) elem.mozRequestFullScreen();
+  else if(elem.msRequestFullscreen) elem.msRequestFullscreen();
+};
+
+// zoom
+document.getElementById("zoom").addEventListener("input", e=>{
+  zoomScale = parseFloat(e.target.value);
+  $("#flipbook .page canvas").css("transform", `scale(${zoomScale})`);
+  $("#flipbook .page").css("transform", `scale(${zoomScale})`);
+});
+
+// automatyczne wczytanie twoj_plik.pdf z tej samej lokalizacji
+loadPdfFlipbook("twoj_plik.pdf");
+</script>
 </body>
 </html>
