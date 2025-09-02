@@ -75,7 +75,7 @@ async function computeFitScale(pageNumber){
   const targetH = container.clientHeight * DPR;
   const sx = targetW / vp.width;
   const sy = targetH / vp.height;
-  return Math.max(sx, sy);
+  return Math.min(sx, sy);
 }
 
 async function renderPageToDataUrl(pageNumber, scale){
@@ -216,6 +216,7 @@ window.addEventListener('load',init);
 </script>
 </body>
 </html>
+
 
 
 
