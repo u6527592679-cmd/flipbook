@@ -2,100 +2,130 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Katalog produktów</title>
-  <script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.9.179/pdf.min.js"></script>
   <style>
     body {
-      margin: 0;
-      padding: 20px;
+      font-family: Arial, sans-serif;
       text-align: center;
-      background: #eee;
-      font-family: sans-serif;
+      margin: 0;
+      background: #f9f9f9;
     }
-    #flipTitle {
-      margin-bottom: 10px;
-      font-size: 2em;
+    h1 {
+      margin: 20px 0;
+      font-size: 24px;
     }
     #flipbook {
       margin: 0 auto;
       width: 90%;
-      height: 80vh;
-      box-shadow: 0 0 20px rgba(0,0,0,0.3);
+      max-width: 800px;
+      height: 500px;
+      border: 1px solid #ccc;
       background: white;
     }
-    #controls {
-      margin-top: 15px;
+    .loader {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 18px;
+      font-weight: bold;
+      color: #333;
     }
-    #controls button {
-      padding: 10px 20px;
-      margin: 5px;
-      font-size: 1rem;
+    .controls {
+      margin: 15px;
+    }
+    .controls button {
+      padding: 8px 16px;
+      margin: 0 5px;
+      font-size: 14px;
       cursor: pointer;
-      border: none;
-      border-radius: 5px;
-      background: #1976d2;
-      color: white;
-      transition: background 0.3s;
-    }
-    #controls button:hover {
-      background: #0d47a1;
     }
   </style>
 </head>
 <body>
 
-<h1 id="flipTitle">Katalog produktów</h1>
-<div id="flipbook"></div>
+  <h1>Katalog produktów</h1>
+  <div id="flipbook"></div>
+  <div class="controls">
+    <button onclick="flipbook.flipPrev()">← Poprzednia</button>
+    <button onclick="flipbook.flipNext()">Następna →</button>
+  </div>
 
-<div id="controls">
-  <button id="prevBtn">◀ Poprzednia</button>
-  <button id="nextBtn">Następna ▶</button>
-</div>
+  <!-- biblioteka flipbook -->
+  <script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
+  <!-- pdf.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.min.js"></script>
 
-<script>
-async function loadPdfFlipbook(pdfPath, containerId) {
-  const container = document.getElementById(containerId);
-  const flipbook = new St.PageFlip(container, {
-    width: 600,
-    height: 800,
-    size: "stretch",
-    maxShadowOpacity: 0.5,
-    showCover: true,
-    mobileScrollSupport: true
-  });
+  <script>
+    const pdfUrl = "moj_plik.pdf"; // <--- Twój PDF w tym samym katalogu co index.html
+    let pdfDoc = null;
+    let flipbook;
 
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.9.179/pdf.worker.min.js";
-  const pdf = await pdfjsLib.getDocument(pdfPath).promise;
-  const pages = [];
+    // loader
+    const loader = document.createElement("div");
+    loader.className = "loader";
+    loader.innerText = "Ładowanie strony...";
+    document.body.appendChild(loader);
 
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: 2 });
-    const canvas = document.createElement("canvas");
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-    pages.push(canvas.toDataURL("image/jpeg"));
-  }
+    async function renderPage(pageNumber) {
+      loader.style.display = "block"; // pokaż loader
 
-  flipbook.loadFromImages(pages);
+      const page = await pdfDoc.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: 1.2 });
 
-  // Obsługa klawiatury
-  document.addEventListener("keydown", e => {
-    if (e.key === "ArrowRight") flipbook.flipNext();
-    if (e.key === "ArrowLeft") flipbook.flipPrev();
-  });
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
 
-  // Obsługa przycisków
-  document.getElementById("nextBtn").addEventListener("click", () => flipbook.flipNext());
-  document.getElementById("prevBtn").addEventListener("click", () => flipbook.flipPrev());
-}
+      await page.render({ canvasContext: context, viewport }).promise;
 
-loadPdfFlipbook("moj_plik.pdf", "flipbook");
-</script>
+      loader.style.display = "none"; // ukryj loader
 
+      return canvas.toDataURL(); // zwracamy obraz
+    }
+
+    async function initFlipbook() {
+      pdfDoc = await pdfjsLib.getDocument(pdfUrl).promise;
+
+      const container = document.getElementById("flipbook");
+      flipbook = new St.PageFlip(container, {
+        width: 400,
+        height: 600,
+        size: "stretch",
+        autoSize: true,
+        maxShadowOpacity: 0.5,
+        showCover: true,
+        mobileScrollSupport: false
+      });
+
+      // Załaduj okładkę i drugą stronę
+      const firstPage = await renderPage(1);
+      const secondPage = pdfDoc.numPages >= 2 ? await renderPage(2) : null;
+
+      const pages = [{ src: firstPage }];
+      if (secondPage) pages.push({ src: secondPage });
+
+      flipbook.loadFromImages(pages);
+
+      // Obsługa przewracania – doładowuje strony w locie
+      flipbook.on("flip", async (e) => {
+        const current = e.data;
+        const nextIndex = current + 1; // flipbook używa indeksu od 0
+        if (nextIndex < pdfDoc.numPages && !flipbook.getPage(nextIndex)) {
+          const img = await renderPage(nextIndex + 1);
+          flipbook.updatePage(nextIndex, { src: img });
+        }
+      });
+
+      // Obsługa klawiatury
+      document.addEventListener("keydown", function(event) {
+        if (event.key === "ArrowRight") flipbook.flipNext();
+        if (event.key === "ArrowLeft") flipbook.flipPrev();
+      });
+    }
+
+    window.onload = initFlipbook;
+  </script>
 </body>
 </html>
