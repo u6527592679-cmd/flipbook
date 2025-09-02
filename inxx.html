@@ -151,8 +151,8 @@ async function init(){
     document.addEventListener('keydown', (e)=>{ if(e.key==='ArrowRight') nextPage(); if(e.key==='ArrowLeft') prevPage(); });
 
     // render pierwsze 4 strony synchronicznie
-    const numInitial = Math.min(10,numPages);
-    loader.innerText = `Wczytywanie pierwszych ${numInitial} stron...`;
+    const numInitial = Math.min(19,numPages);
+    loader.innerText = `Wczytywanie...`;
     for(let i=0;i<numInitial;i++) await ensurePage(i);
 
     // w tle reszta
@@ -183,4 +183,5 @@ window.addEventListener('load',init);
 </script>
 </body>
 </html>
+
 
