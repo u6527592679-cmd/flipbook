@@ -5,9 +5,8 @@
 <title>Flipbook PDF.js + Turn.js</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- PDF.js -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.349/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.349/pdf.worker.min.js"></script>
+<!-- PDF.js 2.x -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
 <!-- jQuery + turn.js -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -39,8 +38,9 @@ input[type=range]{ width:100px; }
 </div>
 
 <script>
-const pdfjsLib = window['pdfjs-dist/build/pdf'];
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.349/pdf.worker.min.js';
+const pdfjsLib = window['pdfjsLib']; 
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
 let pdfDoc = null;
 let zoomScale = 1;
 
