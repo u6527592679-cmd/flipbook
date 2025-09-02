@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Katalog produktów (Flipbook z PNG, zbliżenie strony)</title>
+<title>Katalog produktów (Flipbook + zoom + lupka)</title>
 <style>
   body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f5f6f8;color:#111}
   header{padding:12px 14px;text-align:center;background:#fff;border-bottom:1px solid #eceff1}
@@ -27,7 +27,9 @@
   .zoom-modal img {
     max-width:95vw; max-height:95vh; border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,0.25);
     background:#fff; display:block;
-    cursor: zoom-out;
+    cursor: zoom-in;
+    position:relative;
+    z-index:1;
   }
   .zoom-modal .close {
     position:absolute;top:24px;right:40px;font-size:38px;color:#fff;font-weight:900;cursor:pointer;z-index:10;
@@ -35,6 +37,48 @@
     transition:background 0.2s;
   }
   .zoom-modal .close:hover {background:rgba(0,0,0,0.5);}
+  /* Lupka */
+  .magnifier-glass {
+    position:absolute;
+    border: 3px solid #333;
+    border-radius: 50%;
+    cursor:none;
+    /* semi-transparent background for effect */
+    box-shadow: 0 4px 24px 2px rgba(0,0,0,0.18);
+    z-index: 5;
+    pointer-events: none;
+    width: 180px;
+    height: 180px;
+    background-repeat: no-repeat;
+    /* transition: box-shadow 0.18s; */
+  }
+</style>
+  <style>
+/* Nagłówek responsywny */
+header {
+  background-color: #f3f4f6; /* jasne tło */
+  padding: 20px 10px; /* odstęp w pionie i poziomie */
+  text-align: center;   /* wyśrodkowanie tekstu */
+}
+
+header h1 {
+  font-size: 6vw;       /* rozmiar zależny od szerokości ekranu */
+  font-weight: bold;    /* pogrubienie */
+  color: #0ea5a4;       /* kolor nagłówka */
+  margin: 0;            /* usuwa domyślne marginesy */
+}
+
+/* Opcjonalnie: minimalny i maksymalny rozmiar czcionki */
+@media (min-width: 1200px) {
+  header h1 {
+    font-size: 72px; /* nie za duży na szerokich ekranach */
+  }
+}
+@media (max-width: 400px) {
+  header h1 {
+    font-size: 28px; /* nie za mały na telefonach */
+  }
+}
 </style>
 
 <!-- StPageFlip -->
@@ -147,11 +191,70 @@ function showZoomModal(pageIndex) {
   zoomImg.src = src;
   zoomModal.classList.add('active');
   document.body.style.overflow = 'hidden';
+  setTimeout(() => {
+    if(window.innerWidth > 600) setupMagnifier(zoomImg, 2.2, 180);
+  }, 80);
 }
 function hideZoomModal() {
   zoomModal.classList.remove('active');
   zoomImg.src = '';
   document.body.style.overflow = '';
+  removeMagnifier();
+}
+
+// --- LUPKA (MAGNIFIER) ---
+let magnifier = null;
+function setupMagnifier(img, zoom, glassSize) {
+  removeMagnifier();
+  magnifier = document.createElement('div');
+  magnifier.className = 'magnifier-glass';
+  magnifier.style.width = glassSize+'px';
+  magnifier.style.height = glassSize+'px';
+  magnifier.style.backgroundImage = `url('${img.src}')`;
+  magnifier.style.backgroundSize = (img.width * zoom) + "px " + (img.height * zoom) + "px";
+  magnifier.style.display = 'none';
+  img.parentElement.appendChild(magnifier);
+
+  // Pokazuj lupkę po najechaniu
+  img.addEventListener('mouseenter', showGlass);
+  img.addEventListener('mouseleave', hideGlass);
+  img.addEventListener('mousemove', moveGlass);
+  magnifier.addEventListener('mousemove', moveGlass);
+
+  function showGlass(e) { magnifier.style.display = ''; }
+  function hideGlass(e) { magnifier.style.display = 'none'; }
+  function moveGlass(e) {
+    let pos = getCursorPos(e);
+    let x = pos.x;
+    let y = pos.y;
+    let w = magnifier.offsetWidth / 2;
+    let h = magnifier.offsetHeight / 2;
+    // Ogranicz do obrazka
+    if(x<w) x=w;
+    if(x>img.width-w) x=img.width-w;
+    if(y<h) y=h;
+    if(y>img.height-h) y=img.height-h;
+    magnifier.style.left = (img.offsetLeft + x - w) + "px";
+    magnifier.style.top = (img.offsetTop + y - h) + "px";
+    magnifier.style.backgroundPosition = "-" + ((x * zoom) - w) + "px -" + ((y * zoom) - h) + "px";
+  }
+  function getCursorPos(e) {
+    let a = img.getBoundingClientRect();
+    let x = e.pageX - a.left - window.pageXOffset;
+    let y = e.pageY - a.top - window.pageYOffset;
+    return {x:x, y:y};
+  }
+}
+function removeMagnifier() {
+  if(magnifier) {
+    magnifier.remove();
+    magnifier = null;
+  }
+  if(zoomImg) {
+    zoomImg.removeEventListener('mouseenter', null);
+    zoomImg.removeEventListener('mouseleave', null);
+    zoomImg.removeEventListener('mousemove', null);
+  }
 }
 
 async function init(){
