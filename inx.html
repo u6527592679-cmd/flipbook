@@ -54,7 +54,7 @@ window.onload = async function() {
             loader.innerText = `Ładowanie strony ${i} z ${pdfDoc.numPages}...`;
 
             const page = await pdfDoc.getPage(i);
-            const viewport = page.getViewport({ scale: 1.5 });
+            const viewport = page.getViewport({ scale: 2 });
             const canvas = document.createElement("canvas");
             canvas.width = viewport.width;
             canvas.height = viewport.height;
