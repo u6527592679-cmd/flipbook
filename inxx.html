@@ -3,39 +3,38 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes" />
-  <title>Katalog produktów</title>
+  <title>Katalog produktów — flipbook</title>
   <style>
     :root{--accent:#1976d2;--accent-dark:#1565c0}
     body{font-family:Inter, Arial, Helvetica, sans-serif;margin:0;background:#f5f7fa;color:#111}
-    header{padding:18px 12px;text-align:center}
+    header{padding:16px 12px;text-align:center}
     h1{margin:0;font-size:20px}
-    #wrap{max-width:1200px;margin:18px auto;padding:0 12px}
-    #flipbook{margin: 12px auto; width: 94%; max-width:1000px; height:72vh; min-height:360px; background:#fff; border:1px solid #e2e6ea; position:relative; box-shadow:0 8px 24px rgba(0,0,0,0.06); overflow:hidden}
-    .loader{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,0.95);padding:10px 14px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.08);font-weight:600;z-index:1500}
-    .controls{display:flex;gap:10px;justify-content:center;align-items:center;margin:12px 0;z-index:1200;position:relative}
+    #wrap{max-width:1200px;margin:14px auto;padding:0 12px}
+    #flipbook{margin: 12px auto; width: 94%; max-width:1100px; height:76vh; min-height:380px; background:#fff; border:1px solid #e2e6ea; position:relative; box-shadow:0 8px 24px rgba(0,0,0,0.06); overflow:hidden}
+    .loader{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,0.96);padding:10px 14px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.08);font-weight:600;z-index:1500}
+    .controls{display:flex;gap:10px;justify-content:center;align-items:center;margin:12px 0;z-index:1200;position:relative;flex-wrap:wrap}
     .controls button{background:var(--accent);color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600;box-shadow:0 6px 16px rgba(25,118,210,0.12)}
     .controls button.secondary{background:#6b7280}
     .controls button:disabled{opacity:.55;cursor:not-allowed}
     .zoom-controls{display:inline-flex;gap:6px;margin-left:8px}
     .page-info{font-size:14px;color:#333;margin-left:8px}
-    /* magnifier */
     .magnifier{position:fixed;width:220px;height:220px;border-radius:50%;overflow:hidden;border:3px solid rgba(0,0,0,0.12);box-shadow:0 10px 30px rgba(0,0,0,0.12);pointer-events:none;display:none;z-index:9999;background:#fff}
     @media(max-width:760px){
       #flipbook{height:72vh}
       .magnifier{width:140px;height:140px}
-      .controls{flex-wrap:wrap}
+      .controls{gap:6px}
     }
   </style>
+
   <!-- PDF.js -->
   <script src="pdfjs/pdf.js"></script>
+  <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.js';</script>
+
   <!-- StPageFlip -->
   <script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
 </head>
 <body>
-  <header>
-    <h1>Katalog produktów</h1>
-  </header>
-
+  <header><h1>Katalog produktów</h1></header>
   <div id="wrap">
     <div id="flipbook" aria-live="polite"></div>
 
@@ -48,6 +47,7 @@
         <button id="zoomResetBtn" title="Reset" disabled>Reset</button>
         <button id="zoomInBtn" title="Powiększ" disabled>+</button>
         <button id="toggleLoupeBtn" title="Lupa" disabled style="background:#388e3c">Lupa</button>
+        <button id="fullScreenBtn" title="Pełny ekran" style="background:#333">Pełny ekran</button>
       </div>
 
       <span class="page-info" id="pageInfo">Ładowanie…</span>
@@ -58,23 +58,19 @@
   </div>
 
 <script>
-/* ================= KONFIGURACJA ================= */
-const PDF_URL = "twoj_plik.pdf"; // dostosuj jeśli trzeba
+/* ========== KONFIG ========== */
+const PDF_URL = "twoj_plik.pdf";
 const DPR = Math.max(1, window.devicePixelRatio || 1);
 const DESKTOP_BASE_SCALE = 1.2;
 const MOBILE_BASE_SCALE = 0.95;
 let baseScale = (window.innerWidth <= 760) ? MOBILE_BASE_SCALE : DESKTOP_BASE_SCALE;
 let currentScale = baseScale * DPR;
 const LOUPE_SCALE_MULT = Math.max(2, DPR * 2);
-/* ================================================ */
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.js'; // upewnij się, że ścieżka istnieje
+const ZOOM_FACTOR = 1.5; // multiplikatywny zoom
+/* =========================== */
 
 const container = document.getElementById('flipbook');
-const loader = document.createElement('div');
-loader.className = 'loader';
-loader.innerText = 'Przygotowywanie...';
-container.appendChild(loader);
+const loader = document.createElement('div'); loader.className='loader'; loader.innerText='Przygotowywanie...'; container.appendChild(loader);
 
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
@@ -82,26 +78,36 @@ const zoomInBtn = document.getElementById('zoomInBtn');
 const zoomOutBtn = document.getElementById('zoomOutBtn');
 const zoomResetBtn = document.getElementById('zoomResetBtn');
 const toggleLoupeBtn = document.getElementById('toggleLoupeBtn');
+const fullScreenBtn = document.getElementById('fullScreenBtn');
 const pageInfo = document.getElementById('pageInfo');
 const magnifier = document.getElementById('magnifier');
 
 let pdfDoc = null;
 let flipbook = null;
-let pagesDataUrls = []; // pełna tablica dataURL (0-based)
-let pagesCache = {};    // pagesCache[index] = { high: dataUrl, zoom: dataUrl, loupe: dataUrl }
+let pagesDataUrls = [];
+let pagesCache = {}; // pagesCache[index] = { high:..., zoom:..., loupe:... }
+let isZoomed = false;
 
-/* pomocnicze: placeholder tiny white image */
+/* helper: placeholder tiny white */
 function createPlaceholderDataUrl(){
-  const c = document.createElement('canvas');
-  c.width = 4; c.height = 4;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0,0,c.width,c.height);
+  const c = document.createElement('canvas'); c.width=4; c.height=4;
+  const ctx = c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,4,4);
   return c.toDataURL();
 }
 
-/* render strony na konkretnym scale -> dataURL (jpeg) */
-async function renderPageToDataUrl(pageNumber, scale) {
+/* Compute scale that fits/cover container for page */
+async function computeFitScaleForPage(pageNumber, mode='cover'){
+  const page = await pdfDoc.getPage(pageNumber);
+  const vp = page.getViewport({ scale: 1 });
+  const targetW = container.clientWidth * DPR;
+  const targetH = container.clientHeight * DPR;
+  const scaleX = targetW / vp.width;
+  const scaleY = targetH / vp.height;
+  return (mode === 'cover') ? Math.max(scaleX, scaleY) : Math.min(scaleX, scaleY);
+}
+
+/* render page to dataURL using given scale */
+async function renderPageToDataUrl(pageNumber, scale){
   const page = await pdfDoc.getPage(pageNumber);
   const viewport = page.getViewport({ scale: scale });
   const canvas = document.createElement('canvas');
@@ -112,7 +118,7 @@ async function renderPageToDataUrl(pageNumber, scale) {
   return canvas.toDataURL('image/jpeg', 0.92);
 }
 
-/* BEZPIECZNY update: najpierw spróbuj updateFromImages, jeśli nie ma -> loadFromImages, ostatecznie spróbuj podmiany DOM */
+/* apply pages array safely to flipbook (updateFromImages preferred, else loadFromImages, else DOM fallback) */
 function applyPagesArrayToFlipbook(imagesArray){
   try{
     if (!flipbook) return;
@@ -124,50 +130,47 @@ function applyPagesArrayToFlipbook(imagesArray){
       flipbook.loadFromImages(imagesArray);
       return;
     }
-    // Ostateczny DOM-fallback: spróbuj podmienić img elementy w kontenerze
+    // DOM-fallback
     const imgs = container.querySelectorAll('img');
     for (let i = 0; i < imagesArray.length && i < imgs.length; i++){
       imgs[i].src = imagesArray[i];
     }
-  }catch(e){
-    console.error('applyPagesArrayToFlipbook error', e);
-  }
+  }catch(e){ console.error('applyPagesArrayToFlipbook error', e); }
 }
 
-/* replace single page: rendruj, zapisz w cache i zaktualizuj widok (bez updatePage) */
+/* replacePage: renderuj i podmień (cache + applyPagesArrayToFlipbook) */
 async function replacePage(pageIndexZeroBased, scale, qualityKey='high'){
   const pageNumber = pageIndexZeroBased + 1;
   pagesCache[pageIndexZeroBased] = pagesCache[pageIndexZeroBased] || {};
 
   if (pagesCache[pageIndexZeroBased][qualityKey]) {
-    // mamy w cache - użyj bez renderowania
     pagesDataUrls[pageIndexZeroBased] = pagesCache[pageIndexZeroBased][qualityKey];
     applyPagesArrayToFlipbook(pagesDataUrls);
     return;
   }
 
-  // render
   const dataUrl = await renderPageToDataUrl(pageNumber, scale);
   pagesCache[pageIndexZeroBased][qualityKey] = dataUrl;
   pagesDataUrls[pageIndexZeroBased] = dataUrl;
-
-  // zaktualizuj flipbook
   applyPagesArrayToFlipbook(pagesDataUrls);
 }
 
-/* pomocnik: next/prev page z fallbackiem na nazwę metody */
-function nextPage(){
-  if (!flipbook) return;
-  if (typeof flipbook.flipNext === 'function') { try { flipbook.flipNext(); return; } catch(e){} }
-  if (typeof flipbook.turnToNextPage === 'function') { flipbook.turnToNextPage(); return; }
-}
-function prevPage(){
-  if (!flipbook) return;
-  if (typeof flipbook.flipPrev === 'function') { try { flipbook.flipPrev(); return; } catch(e){} }
-  if (typeof flipbook.turnToPrevPage === 'function') { flipbook.turnToPrevPage(); return; }
+/* navigation helpers with fallbacks */
+function nextPage(){ if(!flipbook) return; if(typeof flipbook.flipNext==='function'){ try{ flipbook.flipNext(); return;}catch(e){} } if(typeof flipbook.turnToNextPage==='function'){ flipbook.turnToNextPage(); } }
+function prevPage(){ if(!flipbook) return; if(typeof flipbook.flipPrev==='function'){ try{ flipbook.flipPrev(); return;}catch(e){} } if(typeof flipbook.turnToPrevPage==='function'){ flipbook.turnToPrevPage(); } }
+
+/* fullscreen toggle */
+function toggleFullScreen(){
+  if (!document.fullscreenElement) {
+    container.requestFullscreen?.() || container.webkitRequestFullscreen?.();
+    fullScreenBtn.innerText = 'Wyjdź z pełnego ekranu';
+  } else {
+    document.exitFullscreen?.();
+    fullScreenBtn.innerText = 'Pełny ekran';
+  }
 }
 
-/* ---------- INICJALIZACJA ---------- */
+/* ========== Inicjalizacja ========== */
 async function init(){
   try{
     const loadingTask = pdfjsLib.getDocument(PDF_URL);
@@ -175,204 +178,183 @@ async function init(){
     const numPages = pdfDoc.numPages;
     pageInfo.innerText = `Strona 0 / ${numPages}`;
 
-    // placeholdery
+    // placeholdery i inicjalizacja tablic
     const placeholder = createPlaceholderDataUrl();
     pagesDataUrls = new Array(numPages).fill(placeholder);
 
-    // inicjalizuj flipbook od razu (by unikać "Invalid page number")
+    // init flipbook (stretch/autoSize)
     flipbook = new St.PageFlip(container, {
-      width: 900,
-      height: 1100,
-      size: "stretch",
-      autoSize: true,
-      minWidth: 300,
-      maxWidth: 1600,
-      minHeight: 300,
-      maxHeight: 2000,
-      showCover: false,
-      usePortrait: true,
-      maxShadowOpacity: 0.6,
-      mobileScrollSupport: true
+      width: 900, height: 1100,
+      size: "stretch", autoSize: true,
+      minWidth: 300, maxWidth: 1600, minHeight: 300, maxHeight: 2000,
+      showCover: false, usePortrait: true, maxShadowOpacity: 0.6, mobileScrollSupport: true
     });
 
     flipbook.loadFromImages(pagesDataUrls);
 
     // odblokuj przyciski
-    prevBtn.disabled = false;
-    nextBtn.disabled = false;
-    zoomInBtn.disabled = false;
-    zoomOutBtn.disabled = false;
-    zoomResetBtn.disabled = false;
-    toggleLoupeBtn.disabled = false;
+    prevBtn.disabled = false; nextBtn.disabled = false;
+    zoomInBtn.disabled = false; zoomOutBtn.disabled = false; zoomResetBtn.disabled = false;
+    toggleLoupeBtn.disabled = false; fullScreenBtn.disabled = false;
 
     prevBtn.addEventListener('click', prevPage);
     nextBtn.addEventListener('click', nextPage);
+    fullScreenBtn.addEventListener('click', toggleFullScreen);
 
-    // keyboard
-    document.addEventListener('keydown', (ev) => {
-      if (ev.key === 'ArrowRight') nextPage();
-      if (ev.key === 'ArrowLeft') prevPage();
-    });
+    document.addEventListener('keydown', (ev)=>{ if(ev.key==='ArrowRight') nextPage(); if(ev.key==='ArrowLeft') prevPage(); });
 
-    // update page info on flip event
     if (typeof flipbook.on === 'function') {
-      flipbook.on('flip', (e) => {
+      flipbook.on('flip', async (e) => {
         const idx = e.data;
         pageInfo.innerText = `Strona ${idx+1} / ${numPages}`;
+        // jeśli nie jesteśmy w trybie zoom -> renderuj aktualną stronę w fit/cover
+        if (!isZoomed) {
+          const fitScale = await computeFitScaleForPage(idx+1, 'cover');
+          currentScale = fitScale;
+          // tylko jeśli nie mamy high quality yet
+          if (!pagesCache[idx] || !pagesCache[idx]['high']) {
+            loader.style.display='block'; loader.innerText=`Wczytywanie strony ${idx+1}...`;
+            await replacePage(idx, currentScale, 'high');
+            loader.style.display='none';
+          }
+        }
       });
     }
 
-    // natychmiast render pierwszych 2 stron w dobrej jakości
+    // render pierwszych stron dopasowanych (cover)
     loader.innerText = `Wczytywanie 1 / ${numPages}...`;
+    const fit0 = await computeFitScaleForPage(1,'cover'); currentScale = fit0;
     await replacePage(0, currentScale, 'high');
 
     if (numPages >= 2) {
       loader.innerText = `Wczytywanie 2 / ${numPages}...`;
-      await replacePage(1, currentScale, 'high');
+      const fit1 = await computeFitScaleForPage(2,'cover'); // may differ
+      // we keep common currentScale for initial view, but cache both
+      await replacePage(1, fit1, 'high');
     }
 
-    // background render reszty sekwencyjnie (nie obciążaj jednocześnie)
+    // background render reszty sekwencyjnie (umiarkowana jakość)
     (async function backgroundRender(){
       for (let i = 3; i <= numPages; i++){
-        loader.style.display = 'block';
+        loader.style.display='block';
         loader.innerText = `Wczytywanie ${i} / ${numPages}...`;
         try {
-          // render umiarkowanej jakości (baseScale * DPR)
-          await replacePage(i - 1, baseScale * DPR, 'high');
-        } catch(err) {
+          const fit = await computeFitScaleForPage(i, 'cover');
+          await replacePage(i-1, fit, 'high');
+        } catch(err){
           console.error('Błąd renderu strony', i, err);
         }
       }
-      loader.style.display = 'none';
-      // ustaw informację na aktualnej stronie
+      loader.style.display='none';
       const cur = (typeof flipbook.getCurrentPageIndex === 'function') ? flipbook.getCurrentPageIndex() : 0;
       pageInfo.innerText = `Strona ${cur+1} / ${numPages}`;
     })();
 
-    /* ========== ZOOM (re-render tylko aktualnej strony) ========== */
-    zoomInBtn.addEventListener('click', async () => {
-      const idx = (typeof flipbook.getCurrentPageIndex === 'function') ? flipbook.getCurrentPageIndex() : 0;
-      currentScale = Math.min(currentScale + 0.6, 4 * DPR);
-      loader.style.display = 'block';
-      loader.innerText = `Powiększanie strony ${idx+1}...`;
-      await replacePage(idx, currentScale, 'zoom');
-      loader.style.display = 'none';
+    /* ========== ZOOM: mnożnikowy zoom (re-render tylko aktualnej strony) ========== */
+    zoomInBtn.addEventListener('click', async ()=>{
+      const idx = (typeof flipbook.getCurrentPageIndex==='function') ? flipbook.getCurrentPageIndex() : 0;
+      const newScale = currentScale * ZOOM_FACTOR;
+      isZoomed = true;
+      loader.style.display='block'; loader.innerText = `Powiększanie strony ${idx+1}...`;
+      await replacePage(idx, newScale, 'zoom');
+      currentScale = newScale;
+      loader.style.display='none';
+      // utrzymaj aktualną stronę widoczną
+      try { if (typeof flipbook.turnToPage === 'function') flipbook.turnToPage(idx); } catch(e){}
     });
 
-    zoomOutBtn.addEventListener('click', async () => {
-      const idx = (typeof flipbook.getCurrentPageIndex === 'function') ? flipbook.getCurrentPageIndex() : 0;
-      currentScale = Math.max(currentScale - 0.6, 0.6 * DPR);
-      loader.style.display = 'block';
-      loader.innerText = `Pomniejszanie strony ${idx+1}...`;
-      await replacePage(idx, currentScale, 'zoom');
-      loader.style.display = 'none';
+    zoomOutBtn.addEventListener('click', async ()=>{
+      const idx = (typeof flipbook.getCurrentPageIndex==='function') ? flipbook.getCurrentPageIndex() : 0;
+      const newScale = Math.max(0.5, currentScale / ZOOM_FACTOR);
+      // jeśli wrócimy blisko base -> uznajemy że nie zoomujemy
+      isZoomed = true;
+      loader.style.display='block'; loader.innerText = `Pomniejszanie strony ${idx+1}...`;
+      await replacePage(idx, newScale, 'zoom');
+      currentScale = newScale;
+      loader.style.display='none';
+      try { if (typeof flipbook.turnToPage === 'function') flipbook.turnToPage(idx); } catch(e){}
     });
 
-    zoomResetBtn.addEventListener('click', async () => {
-      const idx = (typeof flipbook.getCurrentPageIndex === 'function') ? flipbook.getCurrentPageIndex() : 0;
-      currentScale = baseScale * DPR;
-      loader.style.display = 'block';
-      loader.innerText = `Reset jakości strony ${idx+1}...`;
+    zoomResetBtn.addEventListener('click', async ()=>{
+      const idx = (typeof flipbook.getCurrentPageIndex==='function') ? flipbook.getCurrentPageIndex() : 0;
+      const fit = await computeFitScaleForPage(idx+1, 'cover');
+      isZoomed = false;
+      loader.style.display='block'; loader.innerText = `Reset jakości strony ${idx+1}...`;
+      currentScale = fit;
       await replacePage(idx, currentScale, 'high');
-      loader.style.display = 'none';
+      loader.style.display='none';
+      try { if (typeof flipbook.turnToPage === 'function') flipbook.turnToPage(idx); } catch(e){}
     });
 
     /* ========== LUPA (overlay) ========== */
-    let loupeEnabled = false;
-    let loupeImg = null;
-    let loupeCache = {}; // loupeCache[idx] = dataURL
-
-    toggleLoupeBtn.addEventListener('click', async () => {
-      const idx = (typeof flipbook.getCurrentPageIndex === 'function') ? flipbook.getCurrentPageIndex() : 0;
+    let loupeEnabled = false, loupeImg = null, loupeCache = {};
+    toggleLoupeBtn.addEventListener('click', async ()=>{
+      const idx = (typeof flipbook.getCurrentPageIndex==='function') ? flipbook.getCurrentPageIndex() : 0;
       loupeEnabled = !loupeEnabled;
       toggleLoupeBtn.style.background = loupeEnabled ? '#d32f2f' : '#388e3c';
-      if (!loupeEnabled) { magnifier.style.display = 'none'; return; }
-
-      // przygotuj wysoko-rozdzielczy obraz do lupy
+      if (!loupeEnabled) { magnifier.style.display='none'; return; }
       if (!loupeCache[idx]) {
-        loader.style.display = 'block';
-        loader.innerText = 'Przygotowywanie lupy...';
+        loader.style.display='block'; loader.innerText = 'Przygotowywanie lupy...';
         loupeCache[idx] = await renderPageToDataUrl(idx+1, LOUPE_SCALE_MULT * baseScale);
-        loader.style.display = 'none';
+        loader.style.display='none';
       }
-      loupeImg = new Image();
-      loupeImg.src = loupeCache[idx];
-      await new Promise(r => loupeImg.onload = r);
-      magnifier.style.display = 'block';
+      loupeImg = new Image(); loupeImg.src = loupeCache[idx];
+      await new Promise(r=>loupeImg.onload=r);
+      magnifier.style.display='block';
     });
 
-    // aktualizuj obraz lupy po zmianie strony
+    // update lupy przy flipie
     if (typeof flipbook.on === 'function') {
-      flipbook.on('flip', async (e) => {
+      flipbook.on('flip', async (e)=>{
         const idx = e.data;
-        pageInfo.innerText = `Strona ${idx+1} / ${pdfDoc.numPages}`;
         if (!loupeEnabled) return;
         if (!loupeCache[idx]) {
-          loader.style.display = 'block';
-          loader.innerText = `Przygotowywanie lupy (str ${idx+1})...`;
+          loader.style.display='block'; loader.innerText = `Przygotowywanie lupy (str ${idx+1})...`;
           loupeCache[idx] = await renderPageToDataUrl(idx+1, LOUPE_SCALE_MULT * baseScale);
-          loader.style.display = 'none';
+          loader.style.display='none';
         }
-        loupeImg = new Image();
-        loupeImg.src = loupeCache[idx];
-        await new Promise(r => loupeImg.onload = r);
+        loupeImg = new Image(); loupeImg.src = loupeCache[idx];
+        await new Promise(r=>loupeImg.onload=r);
       });
     }
 
-    container.addEventListener('mousemove', (e) => {
+    // rysowanie lupy
+    container.addEventListener('mousemove', (e)=>{
       if (!loupeEnabled || !loupeImg) return;
       const rect = container.getBoundingClientRect();
       const cx = e.clientX - rect.left;
       const cy = e.clientY - rect.top;
-      // ustaw magnifier ok. kursora
       const offset = 16;
       magnifier.style.left = (e.clientX + offset) + 'px';
       magnifier.style.top = (e.clientY + offset) + 'px';
       magnifier.style.display = 'block';
-      // tworzymy canvas wewnątrz magnifier (jednorazowo)
       if (!magnifier._canvas) {
-        const c = document.createElement('canvas');
-        c.width = magnifier.clientWidth;
-        c.height = magnifier.clientHeight;
-        magnifier.innerHTML = '';
-        magnifier.appendChild(c);
-        magnifier._canvas = c;
-        magnifier._ctx = c.getContext('2d', { willReadFrequently: true });
+        const c = document.createElement('canvas'); c.width = magnifier.clientWidth; c.height = magnifier.clientHeight;
+        magnifier.innerHTML=''; magnifier.appendChild(c); magnifier._canvas=c; magnifier._ctx=c.getContext('2d', { willReadFrequently: true });
       }
-      const ctx = magnifier._ctx;
-      const cw = magnifier._canvas.width;
-      const ch = magnifier._canvas.height;
-      const rectW = rect.width;
-      const rectH = rect.height;
-      const imgW = loupeImg.width;
-      const imgH = loupeImg.height;
-      const ratioX = imgW / rectW;
-      const ratioY = imgH / rectH;
-      const sx = Math.max(0, Math.round(cx * ratioX - cw/2));
-      const sy = Math.max(0, Math.round(cy * ratioY - ch/2));
-      ctx.clearRect(0,0,cw,ch);
-      ctx.drawImage(loupeImg, sx, sy, cw, ch, 0, 0, cw, ch);
+      const ctx = magnifier._ctx; const cw = magnifier._canvas.width; const ch = magnifier._canvas.height;
+      const rectW = rect.width; const rectH = rect.height; const imgW = loupeImg.width; const imgH = loupeImg.height;
+      const ratioX = imgW / rectW; const ratioY = imgH / rectH;
+      const sx = Math.max(0, Math.round(cx * ratioX - cw/2)); const sy = Math.max(0, Math.round(cy * ratioY - ch/2));
+      ctx.clearRect(0,0,cw,ch); ctx.drawImage(loupeImg, sx, sy, cw, ch, 0, 0, cw, ch);
     });
-    container.addEventListener('mouseleave', () => magnifier.style.display = 'none');
+    container.addEventListener('mouseleave', ()=>magnifier.style.display='none');
 
-    /* ========== Resize handling (debounced) ========== */
+    /* ========== resize handling (debounce) ========== */
     let resizeTimer = null;
-    window.addEventListener('resize', () => {
+    window.addEventListener('resize', ()=>{
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        // zmiana baseScale dla mobilnych/desktopowych breakpointów
+      resizeTimer = setTimeout(async ()=>{
+        // wylicz nowy baseScale i re-render bieżącej strony, tylko gdy nie zoomujemy
         const oldBase = baseScale;
         baseScale = (window.innerWidth <= 760) ? MOBILE_BASE_SCALE : DESKTOP_BASE_SCALE;
-        if (oldBase !== baseScale) {
-          // re-render aktualnej strony w nowej jakości
+        if (!isZoomed) {
           const idx = (typeof flipbook.getCurrentPageIndex === 'function') ? flipbook.getCurrentPageIndex() : 0;
-          replacePage(idx, baseScale * DPR, 'high').catch(()=>{});
+          const fit = await computeFitScaleForPage(idx+1,'cover');
+          currentScale = fit;
+          await replacePage(idx, currentScale, 'high');
         }
-        // wymuś przebudowę flipbooka (turnToPage) by wyrównać rozmiar
-        try {
-          const cur = (typeof flipbook.getCurrentPageIndex === 'function') ? flipbook.getCurrentPageIndex() : 0;
-          if (typeof flipbook.turnToPage === 'function') flipbook.turnToPage(cur);
-        } catch(e){/*ignore*/}
+        try { const cur = (typeof flipbook.getCurrentPageIndex === 'function') ? flipbook.getCurrentPageIndex() : 0; if (typeof flipbook.turnToPage === 'function') flipbook.turnToPage(cur); } catch(e){}
       }, 220);
     });
 
@@ -382,7 +364,6 @@ async function init(){
   }
 }
 
-/* start */
 window.addEventListener('load', init);
 </script>
 </body>
