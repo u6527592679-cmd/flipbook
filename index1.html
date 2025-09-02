@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Katalog produktów ID Biuro-serwis</title>
+  <title>Katalog produktów</title>
   <script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.9.179/pdf.min.js"></script>
   <style>
@@ -12,6 +12,7 @@
       padding: 20px;
       text-align: center;
       background: #eee;
+      font-family: sans-serif;
     }
     #flipTitle {
       margin-bottom: 10px;
@@ -22,6 +23,24 @@
       width: 90%;
       height: 80vh;
       box-shadow: 0 0 20px rgba(0,0,0,0.3);
+      background: white;
+    }
+    #controls {
+      margin-top: 15px;
+    }
+    #controls button {
+      padding: 10px 20px;
+      margin: 5px;
+      font-size: 1rem;
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      background: #1976d2;
+      color: white;
+      transition: background 0.3s;
+    }
+    #controls button:hover {
+      background: #0d47a1;
     }
   </style>
 </head>
@@ -29,6 +48,11 @@
 
 <h1 id="flipTitle">Katalog produktów</h1>
 <div id="flipbook"></div>
+
+<div id="controls">
+  <button id="prevBtn">◀ Poprzednia</button>
+  <button id="nextBtn">Następna ▶</button>
+</div>
 
 <script>
 async function loadPdfFlipbook(pdfPath, containerId) {
@@ -59,11 +83,15 @@ async function loadPdfFlipbook(pdfPath, containerId) {
 
   flipbook.loadFromImages(pages);
 
-  // Obsługa strzałek
+  // Obsługa klawiatury
   document.addEventListener("keydown", e => {
     if (e.key === "ArrowRight") flipbook.flipNext();
     if (e.key === "ArrowLeft") flipbook.flipPrev();
   });
+
+  // Obsługa przycisków
+  document.getElementById("nextBtn").addEventListener("click", () => flipbook.flipNext());
+  document.getElementById("prevBtn").addEventListener("click", () => flipbook.flipPrev());
 }
 
 loadPdfFlipbook("moj_plik.pdf", "flipbook");
