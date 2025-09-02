@@ -1,25 +1,25 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8">
-  <title>Katalog produktów</title>
-  <style>
-    body { font-family: Arial; text-align: center; margin: 0; background: #f9f9f9; }
-    h1 { margin: 20px 0; font-size: 24px; }
-    #flipbook { margin: 0 auto; width: 90%; max-width: 800px; height: 600px; border: 1px solid #ccc; background: #fff; position: relative; }
-    .loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 18px; font-weight: bold; color: #333; }
-    .controls { margin: 15px; }
-    .controls button { padding: 8px 16px; margin: 0 5px; font-size: 14px; cursor: pointer; }
-  </style>
+<meta charset="UTF-8">
+<title>Katalog produktów</title>
+<style>
+body { font-family: Arial; text-align: center; margin: 0; background: #f9f9f9; }
+h1 { margin: 20px 0; font-size: 24px; }
+#flipbook { margin: 0 auto; width: 90%; max-width: 800px; height: 600px; border: 1px solid #ccc; background: #fff; position: relative; }
+.loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 18px; font-weight: bold; color: #333; }
+.controls { margin: 15px; }
+.controls button { padding: 8px 16px; margin: 0 5px; font-size: 14px; cursor: pointer; }
+</style>
 
-  <!-- PDF.js worker -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.min.js"></script>
-  <script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.worker.min.js';
-  </script>
+<!-- PDF.js lokalnie -->
+<script src="pdfjs/pdf.js"></script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.js';
+</script>
 
-  <!-- Flipbook -->
-  <script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
+<!-- Flipbook -->
+<script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
 </head>
 <body>
 
@@ -31,7 +31,7 @@
 </div>
 
 <script>
-const pdfUrl = "twoj_plik.pdf"; // Twój PDF na Netlify
+const pdfUrl = "twoj_plik.pdf"; // PDF w tym samym folderze co index.html
 let pdfDoc = null;
 let flipbook;
 const container = document.getElementById("flipbook");
@@ -42,16 +42,14 @@ loader.className = "loader";
 loader.innerText = "Ładowanie strony...";
 container.appendChild(loader);
 
+// render pojedynczej strony PDF na dataURL
 async function renderPage(pageNumber) {
-  loader.style.display = "block";
   const page = await pdfDoc.getPage(pageNumber);
-  const viewport = page.getViewport({ scale: 1.2 });
+  const viewport = page.getViewport({ scale: 1.5 });
   const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d");
   canvas.width = viewport.width;
   canvas.height = viewport.height;
-  await page.render({ canvasContext: context, viewport }).promise;
-  loader.style.display = "none";
+  await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
   return canvas.toDataURL();
 }
 
@@ -68,26 +66,17 @@ async function initFlipbook() {
     mobileScrollSupport: false
   });
 
-  // render pierwszych 2 stron
-  const firstPage = await renderPage(1);
-  const secondPage = pdfDoc.numPages >= 2 ? await renderPage(2) : null;
+  const images = [];
+  for (let i = 1; i <= pdfDoc.numPages; i++) {
+    loader.innerText = `Ładowanie strony ${i} z ${pdfDoc.numPages}...`;
+    const img = await renderPage(i);
+    images.push(img);
+  }
 
-  const pages = [{ src: firstPage }];
-  if (secondPage) pages.push({ src: secondPage });
+  flipbook.loadFromImages(images);
+  loader.style.display = "none";
 
-  flipbook.loadFromImages(pages);
-
-  // lazy loading kolejnych stron
-  flipbook.on("flip", async (e) => {
-    const current = e.data;
-    const nextIndex = current + 1;
-    if (nextIndex < pdfDoc.numPages && !flipbook.getPage(nextIndex)) {
-      const img = await renderPage(nextIndex + 1);
-      flipbook.updatePage(nextIndex, { src: img });
-    }
-  });
-
-  // obsługa klawiatury
+  // obsługa strzałek klawiatury
   document.addEventListener("keydown", function(event) {
     if (event.key === "ArrowRight") flipbook.flipNext();
     if (event.key === "ArrowLeft") flipbook.flipPrev();
@@ -99,4 +88,3 @@ window.onload = initFlipbook;
 
 </body>
 </html>
-
