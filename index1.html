@@ -3,71 +3,70 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Flipbook z PDF</title>
-
-  <!-- Podłączamy StPageFlip -->
+  <title>Flipbook z klawiaturą</title>
   <script src="StPageFlip-2.0.0/page-flip.browser.min.js"></script>
-  <!-- Podłączamy PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.9.179/pdf.min.js"></script>
-
   <style>
     body {
       margin: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
+      padding: 20px;
+      text-align: center;
       background: #eee;
     }
+    #flipTitle {
+      margin-bottom: 10px;
+      font-size: 2em;
+    }
     #flipbook {
+      margin: 0 auto;
       width: 90%;
-      height: 90%;
+      height: 80vh;
       box-shadow: 0 0 20px rgba(0,0,0,0.3);
     }
   </style>
 </head>
 <body>
 
+<h1 id="flipTitle">Mój Flipbook</h1>
 <div id="flipbook"></div>
 
 <script>
 async function loadPdfFlipbook(pdfPath, containerId) {
-    const container = document.getElementById(containerId);
+  const container = document.getElementById(containerId);
+  const flipbook = new St.PageFlip(container, {
+    width: 600,
+    height: 800,
+    size: "stretch",
+    maxShadowOpacity: 0.5,
+    showCover: true,
+    mobileScrollSupport: true
+  });
 
-    // Tworzymy flipbook
-    const flipbook = new St.PageFlip(container, {
-        width: 600,
-        height: 800,
-        showCover: true,
-        size: "stretch",
-        maxShadowOpacity: 0.5,
-        mobileScrollSupport: true
-    });
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.9.179/pdf.worker.min.js";
+  const pdf = await pdfjsLib.getDocument(pdfPath).promise;
+  const pages = [];
 
-    // PDF.js worker
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.9.179/pdf.worker.min.js';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    pages.push(canvas.toDataURL("image/jpeg"));
+  }
 
-    // Wczytanie PDF
-    const pdf = await pdfjsLib.getDocument(pdfPath).promise;
-    const pages = [];
+  flipbook.loadFromImages(pages);
 
-    // Renderowanie stron po kolei
-    for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: 2 });
-        const canvas = document.createElement('canvas');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
-        pages.push(canvas.toDataURL("image/jpeg"));
-    }
-
-    // Ładowanie stron do flipbooka
-    flipbook.loadFromImages(pages);
+  // Obsługa strzałek
+  document.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight") flipbook.flipNext();
+    if (e.key === "ArrowLeft") flipbook.flipPrev();
+  });
 }
 
-// Uruchamiamy dla lokalnego PDF
-loadPdfFlipbook("twoj_plik.pdf", "flipbook");
+loadPdfFlipbook("moj_plik.pdf", "flipbook");
 </script>
 
 </body>
