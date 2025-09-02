@@ -12,10 +12,10 @@ h1 { margin: 20px 0; font-size: 24px; }
 .controls button { padding: 8px 16px; margin: 0 5px; font-size: 14px; cursor: pointer; }
 </style>
 
-<!-- PDF.js lokalnie -->
+<!-- PDF.js -->
 <script src="pdfjs/pdf.js"></script>
 <script>
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.js';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.js';
 </script>
 
 <!-- Flipbook -->
@@ -31,7 +31,7 @@ h1 { margin: 20px 0; font-size: 24px; }
 </div>
 
 <script>
-const pdfUrl = "twoj_plik.pdf"; // PDF w tym samym folderze co index.html
+const pdfUrl = "twoj_plik.pdf"; // PDF w tym samym folderze
 let pdfDoc = null;
 let flipbook;
 const container = document.getElementById("flipbook");
@@ -39,7 +39,7 @@ const container = document.getElementById("flipbook");
 // loader
 const loader = document.createElement("div");
 loader.className = "loader";
-loader.innerText = "Ładowanie strony...";
+loader.innerText = "Ładowanie PDF...";
 container.appendChild(loader);
 
 // render pojedynczej strony PDF na dataURL
@@ -50,37 +50,43 @@ async function renderPage(pageNumber) {
   canvas.width = viewport.width;
   canvas.height = viewport.height;
   await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-  return canvas.toDataURL();
+  return canvas.toDataURL(); // <- bardzo ważne, tylko dataURL
 }
 
 async function initFlipbook() {
-  pdfDoc = await pdfjsLib.getDocument(pdfUrl).promise;
+  try {
+    pdfDoc = await pdfjsLib.getDocument(pdfUrl).promise;
+    const images = [];
 
-  flipbook = new St.PageFlip(container, {
-    width: 400,
-    height: 600,
-    size: "stretch",
-    autoSize: true,
-    maxShadowOpacity: 0.5,
-    showCover: true,
-    mobileScrollSupport: false
-  });
+    for (let i = 1; i <= pdfDoc.numPages; i++) {
+      loader.innerText = `Ładowanie strony ${i} z ${pdfDoc.numPages}...`;
+      const img = await renderPage(i);
+      images.push(img);
+    }
 
-  const images = [];
-  for (let i = 1; i <= pdfDoc.numPages; i++) {
-    loader.innerText = `Ładowanie strony ${i} z ${pdfDoc.numPages}...`;
-    const img = await renderPage(i);
-    images.push(img);
+    flipbook = new St.PageFlip(container, {
+      width: 400,
+      height: 600,
+      size: "stretch",
+      autoSize: true,
+      maxShadowOpacity: 0.5,
+      showCover: true,
+      mobileScrollSupport: false
+    });
+
+    flipbook.loadFromImages(images);
+    loader.style.display = "none";
+
+    // strzałki klawiatury
+    document.addEventListener("keydown", function(event) {
+      if (event.key === "ArrowRight") flipbook.flipNext();
+      if (event.key === "ArrowLeft") flipbook.flipPrev();
+    });
+
+  } catch (err) {
+    loader.innerText = "Błąd ładowania PDF";
+    console.error(err);
   }
-
-  flipbook.loadFromImages(images);
-  loader.style.display = "none";
-
-  // obsługa strzałek klawiatury
-  document.addEventListener("keydown", function(event) {
-    if (event.key === "ArrowRight") flipbook.flipNext();
-    if (event.key === "ArrowLeft") flipbook.flipPrev();
-  });
 }
 
 window.onload = initFlipbook;
