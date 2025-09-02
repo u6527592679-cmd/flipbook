@@ -5,12 +5,14 @@
 <title>Flipbook PDF.js + Turn.js</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- turn.js - oficjalna wersja jQuery plugin -->
+<script src="https://rawcdn.githack.com/blasten/turn.js/4.1.0/turn.min.js"></script>
+
 <!-- PDF.js 2.x -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-
-<!-- jQuery + turn.js -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/turn.js/4.1.0/turn.min.js"></script>
 
 <style>
 body { margin:0; display:flex; flex-direction:column; align-items:center; background:#f3f4f6; font-family:sans-serif; }
@@ -44,6 +46,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 let pdfDoc = null;
 let zoomScale = 1;
 
+// Funkcja wczytująca PDF i tworząca flipbook
 async function loadPdfFlipbook(url) {
   pdfDoc = await pdfjsLib.getDocument(url).promise;
   $("#flipbook").html("").turn("destroy");
@@ -72,11 +75,11 @@ async function loadPdfFlipbook(url) {
   });
 }
 
-// przewijanie
+// Przyciski nawigacji
 document.getElementById("prev").onclick = ()=>$("#flipbook").turn("previous");
 document.getElementById("next").onclick = ()=>$("#flipbook").turn("next");
 
-// fullscreen
+// Fullscreen
 document.getElementById("fullscreen").onclick = ()=>{
   const elem = document.getElementById("flipbook");
   if(elem.requestFullscreen) elem.requestFullscreen();
@@ -85,15 +88,16 @@ document.getElementById("fullscreen").onclick = ()=>{
   else if(elem.msRequestFullscreen) elem.msRequestFullscreen();
 };
 
-// zoom
+// Zoom
 document.getElementById("zoom").addEventListener("input", e=>{
   zoomScale = parseFloat(e.target.value);
   $("#flipbook .page canvas").css("transform", `scale(${zoomScale})`);
   $("#flipbook .page").css("transform", `scale(${zoomScale})`);
 });
 
-// automatyczne wczytanie twoj_plik.pdf
+// Wczytanie PDF automatycznie
 loadPdfFlipbook("twoj_plik.pdf");
 </script>
 </body>
 </html>
+
