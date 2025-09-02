@@ -45,10 +45,9 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 let pdfDoc = null;
 let zoomScale = 1;
 
-// Wczytanie PDF i utworzenie flipbooka
 async function loadPdfFlipbook(url) {
   pdfDoc = await pdfjsLib.getDocument(url).promise;
-  $("#flipbook").html("").turn("destroy");
+  $("#flipbook").html(""); // czyści kontener, brak destroy()
 
   for (let i=1; i<=pdfDoc.numPages; i++) {
     const page = await pdfDoc.getPage(i);
@@ -66,7 +65,7 @@ async function loadPdfFlipbook(url) {
     $("#flipbook").append(pageDiv);
   }
 
-  // Inicjalizacja turn.js
+  // inicjalizacja turn.js po dodaniu wszystkich stron
   $("#flipbook").turn({
     width: 900,
     height: 600,
@@ -75,11 +74,11 @@ async function loadPdfFlipbook(url) {
   });
 }
 
-// Nawigacja
+// przyciski nawigacji
 document.getElementById("prev").onclick = ()=>$("#flipbook").turn("previous");
 document.getElementById("next").onclick = ()=>$("#flipbook").turn("next");
 
-// Fullscreen
+// fullscreen
 document.getElementById("fullscreen").onclick = ()=>{
   const elem = document.getElementById("flipbook");
   if(elem.requestFullscreen) elem.requestFullscreen();
@@ -88,17 +87,16 @@ document.getElementById("fullscreen").onclick = ()=>{
   else if(elem.msRequestFullscreen) elem.msRequestFullscreen();
 };
 
-// Zoom
+// zoom
 document.getElementById("zoom").addEventListener("input", e=>{
   zoomScale = parseFloat(e.target.value);
   $("#flipbook .page canvas").css("transform", `scale(${zoomScale})`);
   $("#flipbook .page").css("transform", `scale(${zoomScale})`);
 });
 
-// Automatyczne wczytanie PDF
+// wczytanie PDF
 loadPdfFlipbook("twoj_plik.pdf");
 </script>
 
 </body>
 </html>
-
