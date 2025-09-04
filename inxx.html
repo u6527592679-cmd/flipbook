@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Katalog produktów </title>
+<title>Katalog produktów (Flipbook + zoom scroll)</title>
 <style>
   body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f5f6f8;color:#111}
   header{padding:12px 14px;text-align:center;background:#fff;border-bottom:1px solid #eceff1}
@@ -150,6 +150,8 @@ function toggleFull() {
             document.webkitExitFullscreen();
         } else {
             resetContainerStyles();
+            setContainerHeight();
+            if(flipbook && typeof flipbook.update === 'function') flipbook.update();
         }
     }
 }
