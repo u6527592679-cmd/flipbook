@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Katalog produktów (Flipbook + zoom scroll)</title>
+<title>Katalog produktów </title>
 <style>
   body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f5f6f8;color:#111}
   header{padding:12px 14px;text-align:center;background:#fff;border-bottom:1px solid #eceff1}
@@ -116,6 +116,16 @@ function setContainerHeight(){
   container.style.height = available + 'px';
 }
 
+// Dodajemy funkcję do resetowania stylów kontenera
+function resetContainerStyles() {
+  container.style.position = '';
+  container.style.top = '';
+  container.style.left = '';
+  container.style.width = '';
+  container.style.height = '';
+  container.style.zIndex = '';
+}
+
 function nextPage(){ if(flipbook){ if(typeof flipbook.flipNext==='function'){ try{ flipbook.flipNext(); return;}catch(e){} } if(typeof flipbook.turnToNextPage==='function') flipbook.turnToNextPage(); }}
 function prevPage(){ if(flipbook){ if(typeof flipbook.flipPrev==='function'){ try{ flipbook.flipPrev(); return;}catch(e){} } if(typeof flipbook.turnToPrevPage==='function') flipbook.turnToPrevPage(); }}
 function toggleFull() {
@@ -125,6 +135,7 @@ function toggleFull() {
         } else if (container.webkitRequestFullscreen) {
             container.webkitRequestFullscreen({ navigationUI: 'hide' });
         } else {
+            // Fallback: ręczne nadpisanie stylów
             container.style.position = 'fixed';
             container.style.top = '0';
             container.style.left = '0';
@@ -138,12 +149,7 @@ function toggleFull() {
         } else if (document.webkitExitFullscreen) {
             document.webkitExitFullscreen();
         } else {
-            container.style.position = '';
-            container.style.top = '';
-            container.style.left = '';
-            container.style.width = '';
-            container.style.height = '';
-            container.style.zIndex = '';
+            resetContainerStyles();
         }
     }
 }
@@ -319,13 +325,19 @@ async function init(){
   },220);
   window.addEventListener('resize',onResize);
 
-  // Skalowanie po wyjściu z pełnego ekranu
+  // Po wyjściu z pełnego ekranu resetuj style i aktualizuj rozmiar
+  function onFullScreenExit() {
+    resetContainerStyles();
+    setContainerHeight();
+    if(flipbook && typeof flipbook.update === 'function') flipbook.update();
+  }
   document.addEventListener('fullscreenchange', ()=>{
-    setTimeout(()=>{
-      setContainerHeight();
-      if(flipbook && typeof flipbook.update === 'function') flipbook.update();
-    }, 150);
+    setTimeout(onFullScreenExit, 150);
   });
+  document.addEventListener('webkitfullscreenchange', ()=>{
+    setTimeout(onFullScreenExit, 150);
+  });
+
 }
 
 window.addEventListener('load',init);
