@@ -9,6 +9,8 @@
   header{padding:12px 14px;text-align:center;background:#fff;border-bottom:1px solid #eceff1}
   h1{margin:0;font-size:20px}
   #wrap{max-width:1400px;margin:8px auto;padding:10px}
+  /* The flipbook container is responsive via CSS (width calc + max-width).
+     We rely on restoring computed px sizes after fullscreen to avoid leftover 100vw/100vh inline styles. */
   #flipbook{margin:10px auto;width:calc(100% - 40px);max-width:1300px;background:#fff;border:1px solid #e6e9ee;position:relative;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.06)}
   .controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;margin:8px 0}
   button{padding:8px 12px;border-radius:8px;border:none;background:#1976d2;color:#fff;cursor:pointer}
@@ -108,73 +110,72 @@ const zoomHint = document.getElementById('zoomHint');
 
 let flipbook = null;
 
-// store original inline styles + computed pixel size snapshot
-let originalInlineStyles = {};
-let originalComputedSnapshot = {
-  widthPx: null,
-  heightPx: null,
-  parentWidthPx: null,
+// snapshot storage
+let snapshot = {
+  inlineCssText: '',
+  computedWidth: null,
+  computedHeight: null,
+  parentWidth: null,
   bodyOverflow: ''
 };
-let usedManualFullscreen = false;
+let usingManualFs = false;
 
 function setContainerHeight(){
   const headerH = document.querySelector('header').offsetHeight || 0;
   const controlsH = document.querySelector('.controls').offsetHeight || 0;
   const margin = 18;
   const available = Math.max(200, window.innerHeight - headerH - controlsH - margin);
+  // Only set height for responsive layout; width remains controlled by CSS (calc(...) and max-width)
   container.style.height = available + 'px';
 }
 
-// Save current inline styles AND computed pixel sizes
-function saveOriginalState() {
-  // inline
-  originalInlineStyles.position = container.style.position || '';
-  originalInlineStyles.top = container.style.top || '';
-  originalInlineStyles.left = container.style.left || '';
-  originalInlineStyles.width = container.style.width || '';
-  originalInlineStyles.height = container.style.height || '';
-  originalInlineStyles.zIndex = container.style.zIndex || '';
-  // computed
+// Save current inline cssText + computed px sizes (before entering fullscreen)
+function saveSnapshot() {
+  snapshot.inlineCssText = container.style.cssText || '';
   const rect = container.getBoundingClientRect();
-  originalComputedSnapshot.widthPx = Math.round(rect.width);
-  originalComputedSnapshot.heightPx = Math.round(rect.height);
-  const parent = container.parentElement;
-  originalComputedSnapshot.parentWidthPx = parent ? Math.round(parent.getBoundingClientRect().width) : null;
-  originalComputedSnapshot.bodyOverflow = document.body.style.overflow || '';
-  console.debug('[flipbook] saved original state:', originalInlineStyles, originalComputedSnapshot);
+  snapshot.computedWidth = Math.round(rect.width);
+  snapshot.computedHeight = Math.round(rect.height);
+  snapshot.parentWidth = container.parentElement ? Math.round(container.parentElement.getBoundingClientRect().width) : null;
+  snapshot.bodyOverflow = document.body.style.overflow || '';
+  console.debug('[flipbook] snapshot saved', snapshot);
 }
 
-// Restore inline styles from snapshot
-function restoreOriginalInlineStyles(keepTemporaryPx = false) {
-  // If keepTemporaryPx === true we will set inline width/height to the saved computed px values
-  if (keepTemporaryPx && originalComputedSnapshot.widthPx && originalComputedSnapshot.heightPx) {
-    container.style.width = originalComputedSnapshot.widthPx + 'px';
-    container.style.height = originalComputedSnapshot.heightPx + 'px';
-    // restore other inline props
-    container.style.position = originalInlineStyles.position;
-    container.style.top = originalInlineStyles.top;
-    container.style.left = originalInlineStyles.left;
-    container.style.zIndex = originalInlineStyles.zIndex;
-  } else {
-    // restore exact inline values as they were originally
-    container.style.position = originalInlineStyles.position;
-    container.style.top = originalInlineStyles.top;
-    container.style.left = originalInlineStyles.left;
-    container.style.width = originalInlineStyles.width;
-    container.style.height = originalInlineStyles.height;
-    container.style.zIndex = originalInlineStyles.zIndex;
+// Restore exact computed px size first, then let flipbook update, then restore original inline cssText (so CSS rules resume)
+function restoreAfterFullscreenExit() {
+  // If snapshot not saved, fallback to recalculation
+  if (!snapshot.computedWidth || !snapshot.computedHeight) {
+    // fallback: just recalc with setContainerHeight and update flipbook
+    setContainerHeight();
+    if (flipbook && typeof flipbook.update === 'function') flipbook.update();
+    return;
   }
-  document.body.style.overflow = originalComputedSnapshot.bodyOverflow;
-  console.debug('[flipbook] restored inline styles (keepTemporaryPx=' + keepTemporaryPx + ')', {
-    width: container.style.width, height: container.style.height
-  });
+
+  // apply temporary inline px to match pre-fullscreen rendering
+  container.style.width = snapshot.computedWidth + 'px';
+  container.style.height = snapshot.computedHeight + 'px';
+  // keep any position/zIndex from previous inline snapshot (we restore full cssText later)
+  // force reflow
+  void container.offsetWidth;
+  // update flipbook so it recalculates to temporary size
+  if (flipbook && typeof flipbook.update === 'function') flipbook.update();
+
+  // after flipbook updates, restore original inline cssText (may be empty) to resume responsive behavior
+  setTimeout(() => {
+    container.style.cssText = snapshot.inlineCssText;
+    document.body.style.overflow = snapshot.bodyOverflow;
+    // small delay then update again to ensure layout is consistent
+    setTimeout(() => {
+      if (flipbook && typeof flipbook.update === 'function') flipbook.update();
+      console.debug('[flipbook] restored original inline cssText and updated');
+    }, 180);
+  }, 120);
 }
 
-// Fallback/manual fullscreen
-function applyManualFullscreenStyles() {
-  // save before applying
-  usedManualFullscreen = true;
+// Fallback manual fullscreen (when Fullscreen API isn't available)
+function applyManualFullscreen() {
+  usingManualFs = true;
+  // Save snapshot before applying manual fullscreen
+  saveSnapshot();
   container.style.position = 'fixed';
   container.style.top = '0';
   container.style.left = '0';
@@ -182,47 +183,34 @@ function applyManualFullscreenStyles() {
   container.style.height = '100vh';
   container.style.zIndex = '9999';
   document.body.style.overflow = 'hidden';
+  if (flipbook && typeof flipbook.update === 'function') flipbook.update();
 }
 
-// Navigation helpers
-function nextPage(){ if(flipbook){ if(typeof flipbook.flipNext==='function'){ try{ flipbook.flipNext(); return;}catch(e){} } if(typeof flipbook.turnToNextPage==='function') flipbook.turnToNextPage(); }}
-function prevPage(){ if(flipbook){ if(typeof flipbook.flipPrev==='function'){ try{ flipbook.flipPrev(); return;}catch(e){} } if(typeof flipbook.turnToPrevPage==='function') flipbook.turnToPrevPage(); }}
-
-// Toggle fullscreen (native when available; otherwise fallback manual)
+// Toggle fullscreen: native if supported, otherwise manual fallback
 function toggleFull() {
-  const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
-  if (!inFs) {
-    // save snapshot before entering fullscreen
-    saveOriginalState();
-
+  const isInFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  if (!isInFs && !usingManualFs) {
+    saveSnapshot();
     if (container.requestFullscreen) {
       container.requestFullscreen({ navigationUI: 'hide' }).catch(()=>{});
     } else if (container.webkitRequestFullscreen) {
       container.webkitRequestFullscreen({ navigationUI: 'hide' });
     } else {
-      // manual fallback
-      applyManualFullscreenStyles();
+      applyManualFullscreen();
     }
   } else {
-    // exit fullscreen
+    // if using manual fallback, exit manual mode
+    if (usingManualFs) {
+      usingManualFs = false;
+      restoreAfterFullscreenExit();
+      return;
+    }
     if (document.exitFullscreen) {
       document.exitFullscreen().catch(()=>{});
     } else if (document.webkitExitFullscreen) {
       document.webkitExitFullscreen();
     } else {
-      // manual fallback exit: restore using computed px to ensure exact size
-      usedManualFullscreen = false;
-      restoreOriginalInlineStyles(true); // set temporary px to match previous computed size
-      // force reflow and update flipbook
-      void container.offsetWidth;
-      setTimeout(()=> {
-        if(flipbook && typeof flipbook.update === 'function') flipbook.update();
-        // after update, restore inline to original (if was empty) to keep CSS responsive — keep as comment if you want to keep px
-        setTimeout(()=> {
-          restoreOriginalInlineStyles(false);
-          if(flipbook && typeof flipbook.update === 'function') flipbook.update();
-        }, 300);
-      }, 80);
+      // nothing else to do
     }
   }
 }
@@ -232,16 +220,17 @@ function debounce(fn,wait){ let t; return (...a)=>{ clearTimeout(t); t=setTimeou
 function updatePageInfo() {
   if(!flipbook) return;
   let cur = 0, total = NUM_PAGES;
-  if(typeof flipbook.getCurrentPageIndex==='function') {
-    cur = flipbook.getCurrentPageIndex();
-  } else if(typeof flipbook.getCurrentPageIndex==='number') {
-    cur = flipbook.getCurrentPageIndex;
-  }
+  try {
+    if (typeof flipbook.getCurrentPageIndex === 'function') {
+      cur = flipbook.getCurrentPageIndex();
+    } else if (typeof flipbook.getCurrentPageIndex === 'number') {
+      cur = flipbook.getCurrentPageIndex;
+    }
+  } catch(e) { cur = 0; }
   pageInfo.innerText = `Strona ${cur+1} / ${total}`;
 }
 
 function showZoomModal(pageIndex) {
-  // pageIndex 0-based
   const pages = getPagesArray();
   if(pageIndex < 0 || pageIndex >= pages.length) return;
   zoomImg.src = pages[pageIndex];
@@ -256,10 +245,10 @@ function hideZoomModal() {
   removeImgZoom();
 }
 
-// --- Zoom na obrazku w modalu ---
-let zoom = 1, minZoom = 1, maxZoom = 6, originX = 0, originY = 0, panX = 0, panY = 0, isPanning = false, startX = 0, startY = 0;
+// --- Zoom logic (unchanged) ---
+let zoom = 1, minZoom = 1, maxZoom = 6, panX = 0, panY = 0, isPanning = false, startX = 0, startY = 0;
 function setupImgZoom() {
-  zoom = 1; panX = 0; panY = 0; originX = 0; originY = 0;
+  zoom = 1; panX = 0; panY = 0;
   applyImgTransform();
   zoomImg.style.cursor = 'grab';
 
@@ -268,14 +257,10 @@ function setupImgZoom() {
     let rect = zoomImg.getBoundingClientRect();
     let mouseX = e.clientX - rect.left;
     let mouseY = e.clientY - rect.top;
-
-    // Ustal punkt zoomowania (proporcje)
     let relX = (mouseX - panX) / zoom;
     let relY = (mouseY - panY) / zoom;
-
     let delta = e.deltaY < 0 ? 1.15 : 0.87;
     let newZoom = Math.max(minZoom, Math.min(maxZoom, zoom * delta));
-    // korekta przesunięcia żeby zoomować względem kursora
     panX -= (relX * (newZoom - zoom));
     panY -= (relY * (newZoom - zoom));
     zoom = newZoom;
@@ -303,7 +288,6 @@ function setupImgZoom() {
   };
   zoomImg.ondblclick = function(e){
     if(zoom===1) {
-      // powiększ do 2x wokół kursora
       let rect = zoomImg.getBoundingClientRect();
       let mouseX = e.clientX - rect.left;
       let mouseY = e.clientY - rect.top;
@@ -320,7 +304,6 @@ function setupImgZoom() {
   };
   zoomImg.onmousemove = function(e) { if(zoom>1){zoomImg.style.cursor='grabbing';}else{zoomImg.style.cursor='grab';}};
   zoomImg.onmouseleave = function(e){ if(isPanning) {isPanning=false; zoomImg.style.cursor='grab'; document.onmousemove=null; document.onmouseup=null;}};
-  // Ukryj podpowiedź po chwili
   zoomHint.style.opacity = 1;
   setTimeout(()=>{zoomHint.style.opacity=0;}, 5000);
 }
@@ -337,11 +320,10 @@ function applyImgTransform() {
 }
 
 async function init(){
-  // initial sizing
+  // initial sizing and snapshot of current responsive layout
   setContainerHeight();
-
-  // snapshot initial state (inline + computed)
-  saveOriginalState();
+  // save initial snapshot so we can restore to exact look after fullscreen
+  saveSnapshot();
 
   const pages = getPagesArray();
 
@@ -354,42 +336,29 @@ async function init(){
   flipbook.loadFromImages(pages);
 
   prevBtn.disabled=false; nextBtn.disabled=false; fullBtn.disabled=false; zoomLeftBtn.disabled=false; zoomRightBtn.disabled=false;
-  prevBtn.onclick = prevPage; nextBtn.onclick = nextPage; fullBtn.onclick = toggleFull;
+  prevBtn.onclick = () => { if (flipbook && typeof flipbook.turnToPrevPage === 'function') flipbook.turnToPrevPage(); };
+  nextBtn.onclick = () => { if (flipbook && typeof flipbook.turnToNextPage === 'function') flipbook.turnToNextPage(); };
+  fullBtn.onclick = toggleFull;
 
   document.addEventListener('keydown', (e)=>{
-    if(e.key==='ArrowRight') nextPage();
-    if(e.key==='ArrowLeft') prevPage();
+    if(e.key==='ArrowRight') { if (flipbook && typeof flipbook.turnToNextPage === 'function') flipbook.turnToNextPage(); }
+    if(e.key==='ArrowLeft')  { if (flipbook && typeof flipbook.turnToPrevPage === 'function') flipbook.turnToPrevPage(); }
     if(zoomModal.classList.contains('active') && e.key==='Escape') hideZoomModal();
   });
 
-  // Zbliż lewą stronę
   zoomLeftBtn.onclick = () => {
     if(!flipbook) return;
-    let idx = 0;
-    if(typeof flipbook.getCurrentPageIndex==='function') {
-      idx = flipbook.getCurrentPageIndex();
-    } else if(typeof flipbook.getCurrentPageIndex==='number') {
-      idx = flipbook.getCurrentPageIndex;
-    }
+    let idx = (typeof flipbook.getCurrentPageIndex === 'function') ? flipbook.getCurrentPageIndex() : 0;
     showZoomModal(idx);
   };
-
-  // Zbliż prawą stronę
   zoomRightBtn.onclick = () => {
     if(!flipbook) return;
-    let idx = 0;
-    if(typeof flipbook.getCurrentPageIndex==='function') {
-      idx = flipbook.getCurrentPageIndex();
-    } else if(typeof flipbook.getCurrentPageIndex==='number') {
-      idx = flipbook.getCurrentPageIndex;
-    }
+    let idx = (typeof flipbook.getCurrentPageIndex === 'function') ? flipbook.getCurrentPageIndex() : 0;
     showZoomModal(idx+1);
   };
 
   zoomClose.onclick = hideZoomModal;
-  zoomModal.onclick = (e) => {
-    if(e.target === zoomModal) hideZoomModal();
-  };
+  zoomModal.onclick = (e) => { if(e.target === zoomModal) hideZoomModal(); };
   zoomImg.onclick = (e) => { if(zoom===1) hideZoomModal(); };
 
   flipbook.on('flip', updatePageInfo);
@@ -400,51 +369,30 @@ async function init(){
     setContainerHeight();
     if(typeof flipbook.update === 'function') flipbook.update();
 
-    // keep snapshot up to date if user resizes while not in fullscreen
-    if(!document.fullscreenElement && !document.webkitFullscreenElement && !usedManualFullscreen) {
+    // update computed snapshot when user resizes normally (not while in fullscreen)
+    if(!document.fullscreenElement && !document.webkitFullscreenElement && !usingManualFs) {
       const rect = container.getBoundingClientRect();
-      originalComputedSnapshot.widthPx = Math.round(rect.width);
-      originalComputedSnapshot.heightPx = Math.round(rect.height);
-      originalComputedSnapshot.parentWidthPx = container.parentElement ? Math.round(container.parentElement.getBoundingClientRect().width) : null;
-      // do not overwrite inline snapshot
-      console.debug('[flipbook] updated computed snapshot after resize', originalComputedSnapshot);
+      snapshot.computedWidth = Math.round(rect.width);
+      snapshot.computedHeight = Math.round(rect.height);
+      snapshot.parentWidth = container.parentElement ? Math.round(container.parentElement.getBoundingClientRect().width) : null;
+      console.debug('[flipbook] snapshot updated on resize', snapshot);
     }
   },220);
   window.addEventListener('resize',onResize);
 
-  // handle native fullscreen enter/exit
-  function handleFullscreenChange() {
+  // Listen native fullscreen changes
+  function onFsChange() {
     const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
     if (!inFs) {
-      // EXITED fullscreen
-      console.debug('[flipbook] fullscreenchange: exited, restoring...');
-      // restore using computed px to keep exact size, then update flipbook and remove temporary px
-      restoreOriginalInlineStyles(true);
-      // force reflow
-      void container.offsetWidth;
-      setTimeout(()=> {
-        if(flipbook && typeof flipbook.update === 'function') flipbook.update();
-        // after flipbook recalculated, restore inline to original (could be empty strings) to allow responsive CSS
-        setTimeout(()=> {
-          restoreOriginalInlineStyles(false);
-          if(flipbook && typeof flipbook.update === 'function') flipbook.update();
-        }, 300);
-      }, 80);
+      // exited native fullscreen: restore exact px size then update and finally clear inline to resume CSS
+      console.debug('[flipbook] exited fullscreen, restoring sizes');
+      restoreAfterFullscreenExit();
     } else {
-      // ENTERED native fullscreen - nothing else required; but snapshot should already be saved by toggleFull()
-      console.debug('[flipbook] fullscreenchange: entered');
+      console.debug('[flipbook] entered fullscreen');
     }
   }
-  document.addEventListener('fullscreenchange', handleFullscreenChange);
-  document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-
-  // safety: if user reloads while in fullscreen, try restore initial snapshot on load end
-  window.addEventListener('pageshow', ()=> {
-    if(!document.fullscreenElement && !document.webkitFullscreenElement) {
-      // restore potential leftovers
-      restoreOriginalInlineStyles(false);
-    }
-  });
+  document.addEventListener('fullscreenchange', onFsChange);
+  document.addEventListener('webkitfullscreenchange', onFsChange);
 }
 
 window.addEventListener('load',init);
