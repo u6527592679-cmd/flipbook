@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Katalog produktów (Flipbook + zoom scroll)</title>
+<title>Katalog produktów </title>
 <style>
   body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f5f6f8;color:#111}
   header{padding:12px 14px;text-align:center;background:#fff;border-bottom:1px solid #eceff1}
@@ -108,6 +108,48 @@ const zoomHint = document.getElementById('zoomHint');
 
 let flipbook = null;
 
+// snapshot of inline styles before entering fullscreen (so we can fully restore them)
+let originalInlineStyles = {
+  position: '',
+  top: '',
+  left: '',
+  width: '',
+  height: '',
+  zIndex: ''
+};
+let isManualFullscreen = false;
+
+function saveOriginalInlineStyles() {
+  // store the current inline styles (may be empty strings if not set)
+  originalInlineStyles.position = container.style.position || '';
+  originalInlineStyles.top = container.style.top || '';
+  originalInlineStyles.left = container.style.left || '';
+  originalInlineStyles.width = container.style.width || '';
+  originalInlineStyles.height = container.style.height || '';
+  originalInlineStyles.zIndex = container.style.zIndex || '';
+}
+
+function restoreOriginalInlineStyles() {
+  container.style.position = originalInlineStyles.position;
+  container.style.top = originalInlineStyles.top;
+  container.style.left = originalInlineStyles.left;
+  container.style.width = originalInlineStyles.width;
+  container.style.height = originalInlineStyles.height;
+  container.style.zIndex = originalInlineStyles.zIndex;
+  isManualFullscreen = false;
+}
+
+function applyManualFullscreenStyles() {
+  // apply fallback fullscreen by setting inline styles
+  container.style.position = 'fixed';
+  container.style.top = '0';
+  container.style.left = '0';
+  container.style.width = '100vw';
+  container.style.height = '100vh';
+  container.style.zIndex = '9999';
+  isManualFullscreen = true;
+}
+
 function setContainerHeight(){
   const headerH = document.querySelector('header').offsetHeight || 0;
   const controlsH = document.querySelector('.controls').offsetHeight || 0;
@@ -116,44 +158,41 @@ function setContainerHeight(){
   container.style.height = available + 'px';
 }
 
-// Dodajemy funkcję do resetowania stylów kontenera
-function resetContainerStyles() {
-  container.style.position = '';
-  container.style.top = '';
-  container.style.left = '';
-  container.style.width = '';
-  container.style.height = '';
-  container.style.zIndex = '';
-}
-
+// navigation helpers
 function nextPage(){ if(flipbook){ if(typeof flipbook.flipNext==='function'){ try{ flipbook.flipNext(); return;}catch(e){} } if(typeof flipbook.turnToNextPage==='function') flipbook.turnToNextPage(); }}
 function prevPage(){ if(flipbook){ if(typeof flipbook.flipPrev==='function'){ try{ flipbook.flipPrev(); return;}catch(e){} } if(typeof flipbook.turnToPrevPage==='function') flipbook.turnToPrevPage(); }}
+
+// toggle fullscreen (uses native Fullscreen API when available; falls back to manual)
 function toggleFull() {
-    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-        if (container.requestFullscreen) {
-            container.requestFullscreen({ navigationUI: 'hide' }).catch(()=>{});
-        } else if (container.webkitRequestFullscreen) {
-            container.webkitRequestFullscreen({ navigationUI: 'hide' });
-        } else {
-            // Fallback: ręczne nadpisanie stylów
-            container.style.position = 'fixed';
-            container.style.top = '0';
-            container.style.left = '0';
-            container.style.width = '100vw';
-            container.style.height = '100vh';
-            container.style.zIndex = '9999';
-        }
+  const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  if (!inFs) {
+    // save inline styles BEFORE trying to enter fullscreen
+    saveOriginalInlineStyles();
+
+    if (container.requestFullscreen) {
+      container.requestFullscreen({ navigationUI: 'hide' }).catch(()=>{});
+    } else if (container.webkitRequestFullscreen) {
+      container.webkitRequestFullscreen({ navigationUI: 'hide' });
     } else {
-        if (document.exitFullscreen) {
-            document.exitFullscreen().catch(()=>{});
-        } else if (document.webkitExitFullscreen) {
-            document.webkitExitFullscreen();
-        } else {
-            resetContainerStyles();
-            setContainerHeight();
-            if(flipbook && typeof flipbook.update === 'function') flipbook.update();
-        }
+      // fallback for browsers without Fullscreen API
+      applyManualFullscreenStyles();
     }
+  } else {
+    // exit fullscreen (native or webkit)
+    if (document.exitFullscreen) {
+      document.exitFullscreen().catch(()=>{});
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    } else {
+      // if no native API, restore previously saved styles
+      restoreOriginalInlineStyles();
+      // ensure layout recalculation and flipbook update
+      setTimeout(()=>{
+        setContainerHeight();
+        if(flipbook && typeof flipbook.update === 'function') flipbook.update();
+      }, 60);
+    }
+  }
 }
 
 function debounce(fn,wait){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
@@ -266,7 +305,11 @@ function applyImgTransform() {
 }
 
 async function init(){
+  // compute initial height and save inline styles snapshot
   setContainerHeight();
+
+  // save a snapshot of inline styles now (after initial height calc)
+  saveOriginalInlineStyles();
 
   const pages = getPagesArray();
 
@@ -282,7 +325,7 @@ async function init(){
   prevBtn.onclick = prevPage; nextBtn.onclick = nextPage; fullBtn.onclick = toggleFull;
 
   document.addEventListener('keydown', (e)=>{
-    if(e.key==='ArrowRight') nextPage(); 
+    if(e.key==='ArrowRight') nextPage();
     if(e.key==='ArrowLeft') prevPage();
     if(zoomModal.classList.contains('active') && e.key==='Escape') hideZoomModal();
   });
@@ -322,24 +365,35 @@ async function init(){
   setTimeout(updatePageInfo, 500);
 
   const onResize = debounce(()=>{
+    // recalc height and tell flipbook to update
     setContainerHeight();
     if(typeof flipbook.update === 'function') flipbook.update();
+    // also refresh snapshot of inline height (user resized window while not in fullscreen)
+    if(!document.fullscreenElement && !document.webkitFullscreenElement && !isManualFullscreen) {
+      // update stored original height to reflect new layout
+      originalInlineStyles.height = container.style.height || '';
+      originalInlineStyles.width = container.style.width || '';
+    }
   },220);
   window.addEventListener('resize',onResize);
 
-  // Po wyjściu z pełnego ekranu resetuj style i aktualizuj rozmiar
-  function onFullScreenExit() {
-    resetContainerStyles();
-    setContainerHeight();
-    if(flipbook && typeof flipbook.update === 'function') flipbook.update();
+  // handle exit from native fullscreen
+  function handleFullscreenChange() {
+    // if there is no fullscreen element, we have EXITED fullscreen
+    if(!document.fullscreenElement && !document.webkitFullscreenElement) {
+      // if we used manual fallback earlier, restore from snapshot; otherwise also restore (safe)
+      setTimeout(()=>{
+        restoreOriginalInlineStyles();
+        setContainerHeight();
+        if(flipbook && typeof flipbook.update === 'function') flipbook.update();
+      }, 120);
+    } else {
+      // ENTERED fullscreen (native) - nothing else required because the browser handles sizing
+      // but we keep our snapshot (saved earlier) to restore later
+    }
   }
-  document.addEventListener('fullscreenchange', ()=>{
-    setTimeout(onFullScreenExit, 150);
-  });
-  document.addEventListener('webkitfullscreenchange', ()=>{
-    setTimeout(onFullScreenExit, 150);
-  });
-
+  document.addEventListener('fullscreenchange', handleFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 }
 
 window.addEventListener('load',init);
